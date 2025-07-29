@@ -126,14 +126,18 @@ pub async fn playlist(previous_weeks: Option<u32>, release_date: Option<String>)
                 })
                 .cloned()
                 .collect();
-            match add_tracks_to_playlist(playlist_id, tracks).await {
-                Ok(_) => success!(
-                    "Tracks added to playlist for release week {}/{}",
-                    release_week.week.clone(),
-                    curr_year.clone()
-                ),
-                Err(e) => warning!("Failed to add tracks to playlist: {}", e),
-            };
+
+            let tracks_chunks = tracks.chunks(100);
+            for chunk in tracks_chunks {
+                match add_tracks_to_playlist(playlist_id.clone(), chunk.to_vec()).await {
+                    Ok(_) => success!(
+                        "Tracks added to playlist for release week {}/{}",
+                        release_week.week.clone(),
+                        curr_year.clone()
+                    ),
+                    Err(e) => warning!("Failed to add tracks to playlist: {}", e),
+                };
+            }
         }
     }
 }
