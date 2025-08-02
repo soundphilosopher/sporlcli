@@ -55,7 +55,7 @@ pub async fn auth(shared_state: Arc<Mutex<Option<PkceToken>>>) {
         Some(t) => {
             // initialize token manager with token
             let token_manager = TokenManager::new(t.clone());
-            if let Err(e) = token_manager.save_to_cache().await {
+            if let Err(e) = token_manager.persist().await {
                 error!("Failed to save token to cache: {}", e);
             }
 

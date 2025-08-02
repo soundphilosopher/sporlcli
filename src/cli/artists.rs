@@ -15,7 +15,7 @@ use crate::{
 
 pub async fn artists(update: bool, search: Option<String>) {
     if update {
-        let artist_cache_count = match ArtistsManager::load_from_cache().await {
+        let artist_cache_count = match ArtistsManager::load().await {
             Ok(am) => am.count(),
             Err(_) => 0,
         };
@@ -71,12 +71,12 @@ pub async fn artists(update: bool, search: Option<String>) {
 }
 
 async fn load_cached_artists() -> Result<Vec<Artist>, String> {
-    let artists_mgr = ArtistsManager::load_from_cache().await?;
+    let artists_mgr = ArtistsManager::load().await?;
     Ok(artists_mgr.get_artists())
 }
 
 async fn load_remote_artists(max_new: u64) -> Result<Vec<Artist>, reqwest::Error> {
-    let mut token_mgr = match TokenManager::load_from_cache().await {
+    let mut token_mgr = match TokenManager::load().await {
         Ok(t) => t,
         Err(e) => {
             error!(
@@ -86,7 +86,7 @@ async fn load_remote_artists(max_new: u64) -> Result<Vec<Artist>, reqwest::Error
         }
     };
 
-    let mut all_artists: Vec<Artist> = match ArtistsManager::load_from_cache().await {
+    let mut all_artists: Vec<Artist> = match ArtistsManager::load().await {
         Ok(mgr) => mgr.get_artists(),
         Err(_) => Vec::new(),
     };
@@ -108,11 +108,39 @@ async fn load_remote_artists(max_new: u64) -> Result<Vec<Artist>, reqwest::Error
     );
 
     let mut total_fetched = 0;
-    let mut limit = 50;
+    let limit = 50;
 
     loop {
-        if new_once < 50 {
-            limit = new_once;
+        if new_once < limit {
+            let token = token_mgr.get_valid_token().await;
+            let result = get_artists_from_remote(&token, new_once, after.clone()).await;
+            match result {
+                Ok((artists, _)) => {
+                    if artists.is_empty() {
+                        break;
+                    }
+
+                    let mut artists_mgr = match ArtistsManager::load().await {
+                        Ok(artists_mgr) => artists_mgr,
+                        Err(e) => {
+                            error!("Failed to load artists from cache. Err: {}", e);
+                        }
+                    };
+
+                    if let Err(e) = artists_mgr.add(artists.clone()).await {
+                        error!("Failed to cache artists. Err: {}", e);
+                    }
+
+                    pb.finish_and_clear();
+                    success!("Fetched {} artists!", artists.clone().len());
+
+                    return Ok(artists.clone());
+                }
+                Err(e) => {
+                    pb.finish_and_clear();
+                    error!("Failed to fetch artists: {}", e);
+                }
+            }
         }
 
         let token = token_mgr.get_valid_token().await;
@@ -146,7 +174,7 @@ async fn load_remote_artists(max_new: u64) -> Result<Vec<Artist>, reqwest::Error
     success!("Fetched {} artists!", all_artists.len());
 
     let artists_mgr = ArtistsManager::new(all_artists.clone());
-    if let Err(e) = artists_mgr.save_to_cache().await {
+    if let Err(e) = artists_mgr.persist().await {
         error!("Failed to cache artists. Err: {}", e);
     }
 
@@ -154,7 +182,7 @@ async fn load_remote_artists(max_new: u64) -> Result<Vec<Artist>, reqwest::Error
 }
 
 pub async fn get_remote_artist_count() -> Result<u64, reqwest::Error> {
-    let mut token_mgr = match TokenManager::load_from_cache().await {
+    let mut token_mgr = match TokenManager::load().await {
         Ok(t) => t,
         Err(e) => {
             error!(

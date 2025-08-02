@@ -10,7 +10,7 @@ impl ArtistsManager {
         ArtistsManager { artists }
     }
 
-    pub async fn load_from_cache() -> Result<Self, String> {
+    pub async fn load() -> Result<Self, String> {
         let path = Self::cache_path();
         let content = async_fs::read_to_string(&path)
             .await
@@ -19,7 +19,7 @@ impl ArtistsManager {
         return Ok(Self { artists });
     }
 
-    pub async fn save_to_cache(&self) -> Result<(), String> {
+    pub async fn persist(&self) -> Result<(), String> {
         let path = Self::cache_path();
         if let Some(parent) = path.parent() {
             async_fs::create_dir_all(parent)
@@ -32,6 +32,11 @@ impl ArtistsManager {
         async_fs::write(Self::cache_path(), json)
             .await
             .map_err(|e| e.to_string())
+    }
+
+    pub async fn add(&mut self, artists: Vec<Artist>) -> Result<(), String> {
+        self.artists.extend(artists);
+        self.persist().await
     }
 
     pub fn get_artists(&self) -> Vec<Artist> {

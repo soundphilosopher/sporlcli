@@ -14,7 +14,7 @@ impl TokenManager {
         TokenManager { token }
     }
 
-    pub async fn load_from_cache() -> Result<Self, String> {
+    pub async fn load() -> Result<Self, String> {
         let path = Self::token_path();
         let content = async_fs::read_to_string(&path)
             .await
@@ -23,7 +23,7 @@ impl TokenManager {
         return Ok(Self { token });
     }
 
-    pub async fn save_to_cache(&self) -> Result<(), String> {
+    pub async fn persist(&self) -> Result<(), String> {
         let path = Self::token_path();
         if let Some(parent) = path.parent() {
             async_fs::create_dir_all(parent)
@@ -41,7 +41,7 @@ impl TokenManager {
         if self.is_expired() {
             if let Ok(new_token) = self.refresh_token().await {
                 self.token = new_token;
-                let _ = self.save_to_cache().await;
+                let _ = self.persist().await;
             }
         }
 

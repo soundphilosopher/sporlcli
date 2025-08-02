@@ -25,7 +25,7 @@ pub async fn info(
     }
 
     if artists {
-        let artist_cache_count = match ArtistsManager::load_from_cache().await {
+        let artist_cache_count = match ArtistsManager::load().await {
             Ok(am) => am.count(),
             Err(_) => 0,
         };

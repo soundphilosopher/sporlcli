@@ -114,18 +114,15 @@ async fn call_update(force: bool) -> Result<String, String> {
         .await
     {
         Ok(state) => state,
-        Err(e) => {
-            warning!("Failed to load state: {:?}", e);
-            StateManager::new(STATE_TYPE_RELEASES.to_string())
-        }
+        Err(_) => StateManager::new(STATE_TYPE_RELEASES.to_string()),
     };
 
-    let artists = match ArtistsManager::load_from_cache().await {
+    let artists = match ArtistsManager::load().await {
         Ok(maanger) => maanger.get_artists().clone(),
         Err(_) => error!("No artists found. Run sporlcli artists --update"),
     };
 
-    let mut token_mgr = match TokenManager::load_from_cache().await {
+    let mut token_mgr = match TokenManager::load().await {
         Ok(manager) => manager,
         Err(e) => {
             error!(
@@ -139,6 +136,7 @@ async fn call_update(force: bool) -> Result<String, String> {
     let artist_chunks = artists.chunks(20).clone();
     let artists_total = artists.len().clone();
     let mut artists_count = 1;
+    let mut artist_cached = false;
 
     'chunk: for artist_chunk in artist_chunks {
         for artist in artist_chunk {
@@ -151,13 +149,11 @@ async fn call_update(force: bool) -> Result<String, String> {
                     artists_count = artists_count,
                     artists_total = artists.len().clone()
                 ));
+                artist_cached = true;
                 artists_count += 1;
 
                 // load releases from file cache via ReleaseManager
-                let releases = match ReleaseManager::new(artist.id.clone(), None)
-                    .load_from_cache()
-                    .await
-                {
+                let releases = match ReleaseManager::new(artist.id.clone(), None).load().await {
                     Ok(manager) => manager.get_releases().clone(),
                     Err(_) => Vec::new(),
                 };
@@ -168,6 +164,8 @@ async fn call_update(force: bool) -> Result<String, String> {
 
                 continue;
             }
+
+            artist_cached = false;
 
             match load_releases_from_remote(artist.id.clone(), &token, 50).await {
                 Ok(releases) => {
@@ -231,6 +229,10 @@ async fn call_update(force: bool) -> Result<String, String> {
                     break 'chunk;
                 }
             }
+        }
+
+        if !artist_cached {
+            sleep(Duration::from_secs(30)).await;
         }
     }
 
@@ -361,7 +363,7 @@ async fn prepare_remote_releases(remote_releases: Vec<Album>) -> Result<Vec<Rele
 
 async fn cache_releases_for_artist(artist_id: String, releases: Vec<Album>) -> Result<(), String> {
     match ReleaseManager::new(artist_id.clone(), Some(releases.clone()))
-        .save_to_cache()
+        .persist()
         .await
     {
         Ok(_) => Ok(()),

@@ -157,7 +157,7 @@ async fn get_several_albums(
         album_ids = album_ids
     );
 
-    let mut token_mgr = match TokenManager::load_from_cache().await {
+    let mut token_mgr = match TokenManager::load().await {
         Ok(manager) => manager,
         Err(e) => {
             error!(
@@ -197,7 +197,7 @@ async fn get_several_albums(
 }
 
 async fn create_playlist(name: String) -> Result<CreatePlaylistResponse, reqwest::Error> {
-    let mut token_mgr = match TokenManager::load_from_cache().await {
+    let mut token_mgr = match TokenManager::load().await {
         Ok(manager) => manager,
         Err(e) => {
             error!(
@@ -256,7 +256,7 @@ async fn add_tracks_to_playlist(
     playlist_id: String,
     tracks: Vec<Track>,
 ) -> Result<AddTrackToPlaylistResponse, reqwest::Error> {
-    let mut token_mgr = match TokenManager::load_from_cache().await {
+    let mut token_mgr = match TokenManager::load().await {
         Ok(manager) => manager,
         Err(e) => {
             error!(
@@ -309,7 +309,7 @@ async fn add_tracks_to_playlist(
 }
 
 async fn playlist_already_exists(playlist_name: &str) -> Result<bool, reqwest::Error> {
-    let mut token_mgr = match TokenManager::load_from_cache().await {
+    let mut token_mgr = match TokenManager::load().await {
         Ok(manager) => manager,
         Err(e) => {
             error!(

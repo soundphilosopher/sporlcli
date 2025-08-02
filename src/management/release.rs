@@ -28,7 +28,7 @@ impl ReleaseManager {
         }
     }
 
-    pub async fn load_from_cache(&self) -> Result<Self, ReleaseError> {
+    pub async fn load(&self) -> Result<Self, ReleaseError> {
         let path = Self::get_path(&self);
         let content = async_fs::read_to_string(&path)
             .await
@@ -40,7 +40,7 @@ impl ReleaseManager {
         })
     }
 
-    pub async fn save_to_cache(&self) -> Result<(), ReleaseError> {
+    pub async fn persist(&mut self) -> Result<(), ReleaseError> {
         let path = Self::get_path(&self);
         if let Some(parent) = path.parent() {
             async_fs::create_dir_all(parent)
