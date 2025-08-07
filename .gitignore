@@ -1,1 +1,11 @@
+# Ignore the .env file
+/.env
+
+# Ignore the target directory
 /target
+
+.env*
+.flaskenv*
+!.env.project
+!.env.vault
+!.env.example

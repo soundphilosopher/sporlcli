@@ -6,7 +6,7 @@ use tabled::Table;
 use tokio::time::sleep;
 
 use crate::{
-    common, error,
+    config, error, info,
     management::{ArtistsManager, TokenManager},
     success,
     types::{Artist, ArtistTableRow, FollowedArtistsResponse},
@@ -76,6 +76,19 @@ async fn load_cached_artists() -> Result<Vec<Artist>, String> {
 }
 
 async fn load_remote_artists(max_new: u64) -> Result<Vec<Artist>, reqwest::Error> {
+    let mut all_artists: Vec<Artist> = match ArtistsManager::load().await {
+        Ok(mgr) => mgr.get_artists(),
+        Err(_) => Vec::new(),
+    };
+
+    if max_new == 0 {
+        success!("Nothing to update here.");
+        return Ok(all_artists);
+    } else {
+        info!("Update {} artists in cache ...", max_new);
+    }
+
+    // load tokeb manager for retrieve valid auth token
     let mut token_mgr = match TokenManager::load().await {
         Ok(t) => t,
         Err(e) => {
@@ -86,18 +99,7 @@ async fn load_remote_artists(max_new: u64) -> Result<Vec<Artist>, reqwest::Error
         }
     };
 
-    let mut all_artists: Vec<Artist> = match ArtistsManager::load().await {
-        Ok(mgr) => mgr.get_artists(),
-        Err(_) => Vec::new(),
-    };
-
-    let mut after: Option<String> = None;
-    let mut new_once = max_new;
-    if new_once == 0 {
-        success!("Nothing to update here.");
-        return Ok(all_artists);
-    }
-
+    // start progress wheel
     let pb = ProgressBar::new_spinner();
     pb.set_message("Fetching followed artists...");
     pb.enable_steady_tick(Duration::from_millis(100));
@@ -107,40 +109,15 @@ async fn load_remote_artists(max_new: u64) -> Result<Vec<Artist>, reqwest::Error
             .tick_chars("⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"),
     );
 
-    let mut total_fetched = 0;
-    let limit = 50;
+    let mut after: Option<String> = None;
+    let mut new_once = max_new;
+
+    let mut total_fetched = 0u64;
 
     loop {
-        if new_once < limit {
-            let token = token_mgr.get_valid_token().await;
-            let result = get_artists_from_remote(&token, new_once, after.clone()).await;
-            match result {
-                Ok((artists, _)) => {
-                    if artists.is_empty() {
-                        break;
-                    }
-
-                    let mut artists_mgr = match ArtistsManager::load().await {
-                        Ok(artists_mgr) => artists_mgr,
-                        Err(e) => {
-                            error!("Failed to load artists from cache. Err: {}", e);
-                        }
-                    };
-
-                    if let Err(e) = artists_mgr.add(artists.clone()).await {
-                        error!("Failed to cache artists. Err: {}", e);
-                    }
-
-                    pb.finish_and_clear();
-                    success!("Fetched {} artists!", artists.clone().len());
-
-                    return Ok(artists.clone());
-                }
-                Err(e) => {
-                    pb.finish_and_clear();
-                    error!("Failed to fetch artists: {}", e);
-                }
-            }
+        let limit = if new_once < 50 { new_once } else { 50 };
+        if limit <= 0 {
+            break;
         }
 
         let token = token_mgr.get_valid_token().await;
@@ -152,9 +129,12 @@ async fn load_remote_artists(max_new: u64) -> Result<Vec<Artist>, reqwest::Error
                     break;
                 }
 
-                total_fetched += artists.len();
-                new_once -= total_fetched as u64;
-                pb.set_message(format!("Fetched {} artists...", total_fetched));
+                total_fetched += artists.len() as u64;
+                new_once -= artists.len() as u64;
+                pb.set_message(format!(
+                    "Fetched {}/{} artists from remote ...",
+                    total_fetched, max_new
+                ));
 
                 all_artists.extend(artists);
                 after = next_after;
@@ -171,12 +151,14 @@ async fn load_remote_artists(max_new: u64) -> Result<Vec<Artist>, reqwest::Error
     }
 
     pb.finish_and_clear();
-    success!("Fetched {} artists!", all_artists.len());
+    success!("Fetched {}/{} artists!", all_artists.len().clone(), max_new);
 
     let artists_mgr = ArtistsManager::new(all_artists.clone());
     if let Err(e) = artists_mgr.persist().await {
         error!("Failed to cache artists. Err: {}", e);
     }
+
+    success!("Cached {} artists.", all_artists.len().clone());
 
     Ok(all_artists)
 }
@@ -203,7 +185,7 @@ pub async fn get_remote_artist_count() -> Result<u64, reqwest::Error> {
 
     loop {
         let token = token_mgr.get_valid_token().await;
-        let api_url = format!("{uri}/me/following?type={type}&limit={limit}", uri = common::SPOTIFY_API_URL, type = "artist", limit = "1");
+        let api_url = format!("{uri}/me/following?type={type}&limit={limit}", uri = &config::spotify_apiurl(), type = "artist", limit = "1");
 
         let client = Client::new();
         let response = client.get(&api_url).bearer_auth(token).send().await;
@@ -246,7 +228,7 @@ async fn get_artists_from_remote(
     loop {
         let mut api_url = format!(
             "{uri}/me/following?type=artist&limit={limit}",
-            uri = common::SPOTIFY_API_URL,
+            uri = &config::spotify_apiurl(),
             limit = limit
         );
         if let Some(after_val) = &attempt_after {

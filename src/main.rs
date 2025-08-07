@@ -9,7 +9,7 @@ use clap::{
 };
 use clap_complete::{Shell, generate};
 
-use sporlcli::{cli, types::PkceToken};
+use sporlcli::{cli, config, types::PkceToken};
 use tokio::sync::Mutex;
 
 fn styles() -> Styles {
@@ -97,6 +97,8 @@ struct CompletionsOption {
 
 #[tokio::main]
 async fn main() {
+    config::load_env();
+
     let cli = Cli::parse();
 
     match cli.command {

@@ -5,7 +5,7 @@ use reqwest::{Client, StatusCode};
 use tokio::time::sleep;
 
 use crate::{
-    common, error, info,
+    config, error, info,
     management::TokenManager,
     success,
     types::{
@@ -153,7 +153,7 @@ async fn get_several_albums(
 
     let api_url = format!(
         "{url}/albums?ids={album_ids}",
-        url = common::SPOTIFY_API_URL,
+        url = &config::spotify_apiurl(),
         album_ids = album_ids
     );
 
@@ -209,8 +209,8 @@ async fn create_playlist(name: String) -> Result<CreatePlaylistResponse, reqwest
 
     let api_url = format!(
         "{url}/users/{user_id}/playlists",
-        url = common::SPOTIFY_API_URL,
-        user_id = common::SPOTIFY_USER_ID,
+        url = &config::spotify_apiurl(),
+        user_id = &config::spotify_user()
     );
 
     loop {
@@ -268,7 +268,7 @@ async fn add_tracks_to_playlist(
 
     let api_url = format!(
         "{url}/playlists/{playlist_id}/tracks",
-        url = common::SPOTIFY_API_URL,
+        url = &config::spotify_apiurl(),
         playlist_id = playlist_id,
     );
 
@@ -319,7 +319,7 @@ async fn playlist_already_exists(playlist_name: &str) -> Result<bool, reqwest::E
         }
     };
 
-    let api_url = format!("{url}/me/playlists", url = common::SPOTIFY_API_URL,);
+    let api_url = format!("{url}/me/playlists", url = &config::spotify_apiurl());
 
     loop {
         let client = Client::new();

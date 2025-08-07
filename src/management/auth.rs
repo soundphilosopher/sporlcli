@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use chrono::Utc;
 use reqwest::Client;
 
-use crate::{common, types::Token};
+use crate::{config, types::Token};
 
 pub struct TokenManager {
     token: Token,
@@ -56,11 +56,11 @@ impl TokenManager {
     async fn refresh_token(&self) -> Result<Token, String> {
         let client = Client::new();
         let res = client
-            .post(common::SPOTIFY_API_TOKEN_URL)
+            .post(&config::spotify_apitoken_url())
             .form(&[
                 ("grant_type", "refresh_token"),
                 ("refresh_token", &self.token.refresh_token),
-                ("client_id", common::SPOTIFY_API_AUTH_CLIENT_ID),
+                ("client_id", &config::spotify_client_id()),
             ])
             .send()
             .await

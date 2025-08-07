@@ -3,7 +3,7 @@ use std::{sync::Arc, time::Duration};
 use tokio::sync::Mutex;
 
 use crate::{
-    common, error,
+    config, error,
     management::TokenManager,
     server::start_api_server,
     success,
@@ -24,11 +24,12 @@ pub async fn auth(shared_state: Arc<Mutex<Option<PkceToken>>>) {
 
     // Construct the authorization URL
     let auth_url = format!(
-        "https://accounts.spotify.com/authorize?client_id={client_id}&response_type=code&redirect_uri={redirect_uri}&code_challenge={code_challenge}&code_challenge_method=S256&scope={scope}",
-        client_id = common::SPOTIFY_API_AUTH_CLIENT_ID,
-        redirect_uri = common::SPOTIFY_API_REDIRECT_URI,
+        "{spotify_auth_url}?client_id={client_id}&response_type=code&redirect_uri={redirect_uri}&code_challenge={code_challenge}&code_challenge_method=S256&scope={scope}",
+        spotify_auth_url = &config::spotify_apiauth_url(),
+        client_id = &config::spotify_client_id(),
+        redirect_uri = &config::spotify_redirect_uri(),
         code_challenge = code_challenge,
-        scope = common::SPOTIFY_API_AUTH_SCOPE
+        scope = &config::spotify_scope()
     );
 
     // Store verifier in shared state before redirect

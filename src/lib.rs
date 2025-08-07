@@ -1,6 +1,6 @@
 pub mod api;
 pub mod cli;
-pub mod common;
+pub mod config;
 pub mod management;
 pub mod server;
 pub mod types;

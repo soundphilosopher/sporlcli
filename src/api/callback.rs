@@ -6,7 +6,7 @@ use serde_json::Value;
 use tokio::sync::Mutex;
 
 use crate::{
-    common,
+    config,
     types::{PkceToken, Token},
     warning,
 };
@@ -40,12 +40,12 @@ pub async fn callback(
 }
 
 async fn exchange_code_pkce(code: &str, verifier: &str) -> Result<Token, reqwest::Error> {
-    let client_id = common::SPOTIFY_API_AUTH_CLIENT_ID;
-    let redirect_uri = common::SPOTIFY_API_REDIRECT_URI;
+    let client_id = &config::spotify_client_id();
+    let redirect_uri = &&config::spotify_redirect_uri();
 
     let client = Client::new();
     let res = client
-        .post(common::SPOTIFY_API_TOKEN_URL)
+        .post(&config::spotify_apitoken_url())
         .form(&[
             ("grant_type", "authorization_code"),
             ("client_id", client_id),

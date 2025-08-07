@@ -7,7 +7,7 @@ use tabled::Table;
 use tokio::time::sleep;
 
 use crate::{
-    common, error,
+    config, error,
     management::{
         ArtistsManager, ReleaseManager, ReleaseWeekManager, STATE_TYPE_RELEASES, StateManager,
         TokenManager,
@@ -289,7 +289,7 @@ async fn load_releases_from_remote(
     let client = Client::new();
     let api_url = format!(
         "{uri}/artists/{id}/albums?include_groups={include_groups}&limit={limit}",
-        uri = common::SPOTIFY_API_URL,
+        uri = &config::spotify_apiurl(),
         id = artist_id,
         include_groups = "album",
         limit = limit
