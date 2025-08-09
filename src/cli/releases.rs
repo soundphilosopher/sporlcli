@@ -9,11 +9,10 @@ use tokio::time::sleep;
 use crate::{
     config, error,
     management::{
-        ArtistsManager, ReleaseManager, ReleaseWeekManager, STATE_TYPE_RELEASES, StateManager,
-        TokenManager,
+        ArtistReleaseManager, ReleaseWeekManager, STATE_TYPE_RELEASES, StateManager, TokenManager,
     },
     success,
-    types::{Album, AlbumResponse, ReleaseTableRow, ReleaseWeek},
+    types::{Album, AlbumResponse, ArtistReleases, ReleaseTableRow, ReleaseWeek},
     utils, warning,
 };
 
@@ -117,10 +116,9 @@ async fn call_update(force: bool) -> Result<String, String> {
         Err(_) => StateManager::new(STATE_TYPE_RELEASES.to_string()),
     };
 
-    let artists = match ArtistsManager::load().await {
-        Ok(maanger) => maanger.get_artists().clone(),
-        Err(_) => error!("No artists found. Run sporlcli artists --update"),
-    };
+    let mut artist_release_mgr = ArtistReleaseManager::load()
+        .await
+        .unwrap_or_else(|_| ArtistReleaseManager::new(None));
 
     let mut token_mgr = match TokenManager::load().await {
         Ok(manager) => manager,
@@ -133,70 +131,71 @@ async fn call_update(force: bool) -> Result<String, String> {
     };
 
     let mut remote_releases: Vec<Album> = Vec::new();
-    let artist_chunks = artists.chunks(20).clone();
-    let artists_total = artists.len().clone();
-    let mut artists_count = 1;
+    let artist_releases: Vec<ArtistReleases> = if let Some(ar) = artist_release_mgr.all() {
+        ar
+    } else {
+        Vec::new()
+    };
+
+    let artist_chunks = artist_releases.chunks(20);
+    let artists_total = artist_releases.len().clone();
+    let mut artists_count = 0;
     let mut artist_cached = false;
 
     'chunk: for artist_chunk in artist_chunks {
         for artist in artist_chunk {
             let token = token_mgr.get_valid_token().await;
 
-            if state.has(artist.id.clone()) && !force {
+            if state.has(artist.artist.id.clone()) && !force {
                 pb.set_message(format!(
                     "Releases for artist {artist_name} already cached. ({artists_count}/{artists_total})",
-                    artist_name = artist.name.clone(),
+                    artist_name = artist.artist.name.clone(),
                     artists_count = artists_count,
-                    artists_total = artists.len().clone()
+                    artists_total = artists_total
                 ));
                 artist_cached = true;
                 artists_count += 1;
 
-                // load releases from file cache via ReleaseManager
-                let releases = match ReleaseManager::new(artist.id.clone(), None).load().await {
-                    Ok(manager) => manager.get_releases().clone(),
-                    Err(_) => Vec::new(),
-                };
-
-                if releases.len() > 0 {
-                    remote_releases.extend(releases);
-                }
-
+                remote_releases.extend(artist.releases.clone());
                 continue;
             }
 
             artist_cached = false;
 
-            match load_releases_from_remote(artist.id.clone(), &token, 50).await {
+            match load_releases_from_remote(artist.artist.id.clone(), &token, 50).await {
                 Ok(releases) => {
                     pb.set_message(format!(
                         "Fetched {releases} releases from artist {artist_name} ({artists_count}/{artists_total}).",
                         releases = releases.len().clone(),
-                        artist_name = artist.name.clone(),
+                        artist_name = artist.artist.name.clone(),
                         artists_count = artists_count,
                         artists_total = artists_total
                     ));
                     remote_releases.extend(releases.clone());
-                    state.add(artist.id.clone());
+                    state.add(artist.artist.id.clone());
                     artists_count += 1;
 
                     // cache release for artist
                     if releases.len() > 0 {
-                        match cache_releases_for_artist(artist.id.clone(), releases.clone()).await {
+                        match artist_release_mgr
+                            .add_releases_to_artist(&artist.artist.id, releases)
+                            .persist()
+                            .await
+                        {
                             Ok(_) => {
                                 pb.set_message(format!(
                                     "Releases for artist {artist_name} cached. ({artists_count}/{artists_total})",
-                                    artist_name = artist.name.clone(),
+                                    artist_name = artist.artist.name,
                                     artists_count = artists_count,
-                                    artists_total = artists.len().clone()
+                                    artists_total = artists_total
                                 ));
                             }
-                            Err(_) => {
+                            Err(e) => {
                                 pb.set_message(format!(
-                                    "Cannot cache releases for artist {artist_name}. ({artists_count}/{artists_total})",
-                                    artist_name = artist.name.clone(),
+                                    "Cannot cache releases for artist {artist_name} ({artists_count}/{artists_total}): {e}",
+                                    artist_name = artist.artist.name,
                                     artists_count = artists_count,
-                                    artists_total = artists.len().clone()
+                                    artists_total = artists_total
                                 ));
                             }
                         }
@@ -205,24 +204,24 @@ async fn call_update(force: bool) -> Result<String, String> {
                 Err(e) => {
                     pb.set_message(format!(
                         "Failed to load releases for artist {artist_name}: {error} ({artists_count}/{artists_total})",
-                        artist_name = artist.name.clone(),
+                        artist_name = artist.artist.name.clone(),
                         error = e,
                         artists_count = artists_count,
-                        artists_total = artists.len().clone()
+                        artists_total = artists_total
                     ));
 
                     match state.persist().await {
                         Ok(_) => pb.set_message(format!(
                             "Successfully persisted state. ({artists_count}/{artists_total})",
                             artists_count = artists_count,
-                            artists_total = artists.len().clone()
+                            artists_total = artists_total
                         )),
                         Err(e) => {
                             pb.set_message(format!("Failed to persist state: {error:?} ({artists_count}/{artists_total})",
                                 error = e,
                                 artists_count = artists_count,
-                                artists_total = artists.len().clone())
-                            );
+                                artists_total = artists_total
+                            ));
                         }
                     }
 
@@ -238,13 +237,12 @@ async fn call_update(force: bool) -> Result<String, String> {
 
     pb.finish();
 
-    if (artists_total - 1) == artists_count {
+    // @todo implement cleanup of stste
+    if artists_count == artists_total {
         match state.clear().await {
-            Ok(_) => success!("All artists have been processed"),
-            Err(e) => {
-                warning!("Failed to clear state: {:?}", e);
-            }
-        };
+            Ok(_) => success!("State cache cleaned."),
+            Err(e) => warning!("Cannot cleanup state cache. Err: {:?}", e),
+        }
     }
 
     let releases_per_week = match prepare_remote_releases(remote_releases).await {
@@ -359,14 +357,4 @@ async fn prepare_remote_releases(remote_releases: Vec<Album>) -> Result<Vec<Rele
     }
 
     Ok(releases_weeks)
-}
-
-async fn cache_releases_for_artist(artist_id: String, releases: Vec<Album>) -> Result<(), String> {
-    match ReleaseManager::new(artist_id.clone(), Some(releases.clone()))
-        .persist()
-        .await
-    {
-        Ok(_) => Ok(()),
-        Err(_) => Err(format!("Cannot cache release for artist {}", artist_id)),
-    }
 }

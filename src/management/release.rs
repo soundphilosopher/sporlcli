@@ -15,60 +15,6 @@ impl From<Error> for ReleaseError {
     }
 }
 
-pub struct ReleaseManager {
-    artist_id: String,
-    releases: Vec<Album>,
-}
-
-impl ReleaseManager {
-    pub fn new(artist_id: String, releases: Option<Vec<Album>>) -> Self {
-        Self {
-            artist_id,
-            releases: releases.unwrap_or(Vec::new()),
-        }
-    }
-
-    pub async fn load(&self) -> Result<Self, ReleaseError> {
-        let path = Self::get_path(&self);
-        let content = async_fs::read_to_string(&path)
-            .await
-            .map_err(|e| ReleaseError::IoError(e))?;
-        let releases = serde_json::from_str(&content).map_err(|e| ReleaseError::SerdeError(e))?;
-        Ok(Self {
-            artist_id: self.artist_id.clone(),
-            releases,
-        })
-    }
-
-    pub async fn persist(&mut self) -> Result<(), ReleaseError> {
-        let path = Self::get_path(&self);
-        if let Some(parent) = path.parent() {
-            async_fs::create_dir_all(parent)
-                .await
-                .map_err(|e| ReleaseError::IoError(e))?;
-        }
-
-        let json = serde_json::to_string_pretty(&self.releases.clone())
-            .map_err(|e| ReleaseError::SerdeError(e))?;
-        async_fs::write(Self::get_path(&self), json)
-            .await
-            .map_err(|e| ReleaseError::IoError(e))
-    }
-
-    pub fn get_releases(&self) -> Vec<Album> {
-        self.releases.clone()
-    }
-
-    fn get_path(&self) -> PathBuf {
-        let mut path = dirs::data_local_dir().unwrap_or_else(|| PathBuf::from("."));
-        path.push(format!(
-            "sporlcli/cache/{artist_id}/releases.json",
-            artist_id = self.artist_id.clone()
-        ));
-        path
-    }
-}
-
 pub struct ReleaseWeekManager {
     week: u32,
     year: i32,

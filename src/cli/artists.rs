@@ -7,16 +7,16 @@ use tokio::time::sleep;
 
 use crate::{
     config, error, info,
-    management::{ArtistsManager, TokenManager},
+    management::{ArtistReleaseManager, TokenManager},
     success,
-    types::{Artist, ArtistTableRow, FollowedArtistsResponse},
+    types::{Artist, ArtistReleases, ArtistTableRow, FollowedArtistsResponse},
     warning,
 };
 
 pub async fn artists(update: bool, search: Option<String>) {
     if update {
-        let artist_cache_count = match ArtistsManager::load().await {
-            Ok(am) => am.count(),
+        let artist_cache_count = match ArtistReleaseManager::load().await {
+            Ok(arm) => arm.count_artists(),
             Err(_) => 0,
         };
 
@@ -25,8 +25,8 @@ pub async fn artists(update: bool, search: Option<String>) {
             Err(_) => 0,
         };
 
-        let max_new: u64 = if artist_remote_count > artist_cache_count {
-            artist_remote_count - artist_cache_count
+        let max_new: u64 = if artist_remote_count > artist_cache_count as u64 {
+            artist_remote_count - artist_cache_count as u64
         } else {
             0
         };
@@ -71,19 +71,23 @@ pub async fn artists(update: bool, search: Option<String>) {
 }
 
 async fn load_cached_artists() -> Result<Vec<Artist>, String> {
-    let artists_mgr = ArtistsManager::load().await?;
-    Ok(artists_mgr.get_artists())
+    match ArtistReleaseManager::load().await {
+        Ok(arm) => Ok(arm.get_all_artists().unwrap_or(Vec::new())),
+        Err(e) => Err(format!("Failed to load artists. Err: {}", e)),
+    }
 }
 
-async fn load_remote_artists(max_new: u64) -> Result<Vec<Artist>, reqwest::Error> {
-    let mut all_artists: Vec<Artist> = match ArtistsManager::load().await {
-        Ok(mgr) => mgr.get_artists(),
-        Err(_) => Vec::new(),
+async fn load_remote_artists(max_new: u64) -> Result<Vec<ArtistReleases>, reqwest::Error> {
+    let mut arm = match ArtistReleaseManager::load().await {
+        Ok(arm) => arm,
+        Err(err) => {
+            error!("Cannot load artist-releases-maanger: {}", err);
+        }
     };
 
     if max_new == 0 {
         success!("Nothing to update here.");
-        return Ok(all_artists);
+        return Ok(arm.all().unwrap_or(Vec::new()));
     } else {
         info!("Update {} artists in cache ...", max_new);
     }
@@ -136,7 +140,7 @@ async fn load_remote_artists(max_new: u64) -> Result<Vec<Artist>, reqwest::Error
                     total_fetched, max_new
                 ));
 
-                all_artists.extend(artists);
+                arm.add_artists(artists);
                 after = next_after;
 
                 if after.is_none() {
@@ -151,16 +155,20 @@ async fn load_remote_artists(max_new: u64) -> Result<Vec<Artist>, reqwest::Error
     }
 
     pb.finish_and_clear();
-    success!("Fetched {}/{} artists!", all_artists.len().clone(), max_new);
+    success!(
+        "Fetched {}/{} artists!",
+        arm.count_artists().clone(),
+        max_new
+    );
 
-    let artists_mgr = ArtistsManager::new(all_artists.clone());
-    if let Err(e) = artists_mgr.persist().await {
+    // let artists_mgr = ArtistReleaseManager::new()
+    if let Err(e) = arm.persist().await {
         error!("Failed to cache artists. Err: {}", e);
     }
 
-    success!("Cached {} artists.", all_artists.len().clone());
+    success!("Cached {} artists.", arm.count_artists().clone());
 
-    Ok(all_artists)
+    Ok(arm.all().unwrap_or(Vec::new()))
 }
 
 pub async fn get_remote_artist_count() -> Result<u64, reqwest::Error> {

@@ -1,6 +1,6 @@
 use chrono::Utc;
 
-use crate::{cli::artists, error, info, management::ArtistsManager, utils, warning};
+use crate::{cli::artists, error, info, management::ArtistReleaseManager, utils, warning};
 
 struct ReleaseWeekInfo {
     week: u32,
@@ -25,8 +25,8 @@ pub async fn info(
     }
 
     if artists {
-        let artist_cache_count = match ArtistsManager::load().await {
-            Ok(am) => am.count(),
+        let artist_cache_count = match ArtistReleaseManager::load().await {
+            Ok(arm) => arm.count_artists().clone() as u64,
             Err(_) => 0,
         };
 
