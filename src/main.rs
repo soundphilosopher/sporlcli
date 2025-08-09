@@ -9,7 +9,7 @@ use clap::{
 };
 use clap_complete::{Shell, generate};
 
-use sporlcli::{cli, config, types::PkceToken, utils};
+use sporlcli::{cli, config, error, success, types::PkceToken, utils};
 use tokio::sync::Mutex;
 
 fn styles() -> Styles {
@@ -99,7 +99,10 @@ struct CompletionsOption {
 
 #[tokio::main]
 async fn main() {
-    config::load_env();
+    match config::load_env().await {
+        Ok(_) => success!("Environment loaded."),
+        Err(e) => error!("Cannot load environment. Err: {}", e),
+    }
 
     let cli = Cli::parse();
 

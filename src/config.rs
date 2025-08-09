@@ -1,8 +1,17 @@
-use dotenv::dotenv;
-use std::env;
+use dotenv;
+use std::{env, path::PathBuf};
 
-pub fn load_env() {
-    dotenv().expect("Failed to load .env file");
+pub async fn load_env() -> Result<(), String> {
+    let mut path = dirs::data_local_dir().unwrap_or_else(|| PathBuf::from("."));
+    path.push("sporlcli/.env");
+    if let Some(parent) = path.parent() {
+        async_fs::create_dir_all(parent)
+            .await
+            .map_err(|e| e.to_string())?;
+    }
+
+    dotenv::from_path(path).expect("Failed to load .env file");
+    Ok(())
 }
 
 pub fn spotify_user() -> String {
