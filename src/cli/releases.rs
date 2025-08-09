@@ -19,11 +19,12 @@ use crate::{
 pub async fn releases(
     update: bool,
     force_update: bool,
+    release_types: utils::ReleaseKinds,
     weeks_include: Option<u32>,
     release_date: Option<String>,
 ) {
     if update {
-        match call_update(force_update).await {
+        match call_update(force_update, &release_types).await {
             Ok(message) => success!("{}", message),
             Err(_) => error!("Cannot update from remote"),
         }
@@ -98,7 +99,7 @@ pub async fn releases(
     }
 }
 
-async fn call_update(force: bool) -> Result<String, String> {
+async fn call_update(force: bool, release_types: &utils::ReleaseKinds) -> Result<String, String> {
     let pb = ProgressBar::new_spinner();
     pb.set_message("Fetching releases for followed artists...");
     pb.enable_steady_tick(Duration::from_secs(100));
@@ -162,7 +163,9 @@ async fn call_update(force: bool) -> Result<String, String> {
 
             artist_cached = false;
 
-            match load_releases_from_remote(artist.artist.id.clone(), &token, 50).await {
+            match load_releases_from_remote(artist.artist.id.clone(), &token, 50, release_types)
+                .await
+            {
                 Ok(releases) => {
                     pb.set_message(format!(
                         "Fetched {releases} releases from artist {artist_name} ({artists_count}/{artists_total}).",
@@ -283,13 +286,14 @@ async fn load_releases_from_remote(
     artist_id: String,
     token: &str,
     limit: u32,
+    release_types: &utils::ReleaseKinds,
 ) -> Result<Vec<Album>, reqwest::Error> {
     let client = Client::new();
     let api_url = format!(
         "{uri}/artists/{id}/albums?include_groups={include_groups}&limit={limit}",
         uri = &config::spotify_apiurl(),
         id = artist_id,
-        include_groups = "album",
+        include_groups = format!("{}", release_types),
         limit = limit
     );
 

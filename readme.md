@@ -41,8 +41,7 @@ TBA
 - [x] Cache artist-releases to local file cache
 - [x] Create playlist for fetched releases
 - [ ] Expose necessary information in readme
-- [ ] Add possibility to fetch Singles and others from Spotify API
-- ~~[ ] Automatically remove artist-release-cache after fetching all releases~~
+- [x] Add possibility to fetch Singles and others from Spotify API
 - [x] Automatically remove artist state cache after fetching all releases
 - [x] Remove static public configuration
 - [ ] Integrate authentication with more than one Spotiy App

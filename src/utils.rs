@@ -1,9 +1,15 @@
-use std::{cmp::Ordering, collections::HashSet};
+use std::{
+    cmp::Ordering,
+    collections::{BTreeSet, HashSet},
+    fmt,
+};
 
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
 use chrono::{Datelike, Duration, NaiveDate, Utc, Weekday};
 use rand::{Rng, distr::Alphanumeric};
 use sha2::{Digest, Sha256};
+
+use clap::ValueEnum;
 
 use crate::{
     management::ReleaseWeekManager,
@@ -123,4 +129,117 @@ fn sort_albums_by_date_and_artist(albums: &mut Vec<Album>) {
 
         a_artist.cmp(&b_artist)
     });
+}
+
+/// The normalized set of types your command will use.
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Debug, ValueEnum, Hash)]
+#[value(rename_all = "snake_case")]
+pub enum ReleaseKind {
+    Album,
+    Single,
+    AppearsOn,
+    Compilation,
+}
+
+impl ReleaseKind {
+    const ALL: [ReleaseKind; 4] = [
+        ReleaseKind::Album,
+        ReleaseKind::Single,
+        ReleaseKind::AppearsOn,
+        ReleaseKind::Compilation,
+    ];
+}
+
+/// A validated, deduplicated set of kinds parsed from `--type`.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ReleaseKinds(BTreeSet<ReleaseKind>);
+
+impl ReleaseKinds {
+    pub fn iter(&self) -> impl Iterator<Item = ReleaseKind> + '_ {
+        self.0.iter().copied()
+    }
+}
+
+impl Default for ReleaseKinds {
+    fn default() -> Self {
+        // Default value is "album"
+        let mut set = BTreeSet::new();
+        set.insert(ReleaseKind::Album);
+        ReleaseKinds(set)
+    }
+}
+
+// Print a single kind as clap's canonical value (lower_snake_case).
+impl fmt::Display for ReleaseKind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let name = self
+            .to_possible_value()
+            .expect("ValueEnum should have a possible value")
+            .get_name()
+            .to_owned();
+        f.write_str(&name)
+    }
+}
+
+// Print the set as a comma-separated list using those canonical names.
+impl fmt::Display for ReleaseKinds {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut it = self.0.iter();
+        if let Some(first) = it.next() {
+            write!(f, "{}", first)?;
+            for k in it {
+                write!(f, ",{}", k)?;
+            }
+        }
+        Ok(())
+    }
+}
+
+/// Custom parser for `--type`. Accepts comma-separated values, expands `all`,
+/// validates entries, trims whitespace, and deduplicates.
+pub fn parse_release_kinds(input: &str) -> Result<ReleaseKinds, String> {
+    let mut set: BTreeSet<ReleaseKind> = BTreeSet::new();
+
+    // Empty string should be rejected (unless using default value)
+    if input.trim().is_empty() {
+        return Err("value for --type cannot be empty".into());
+    }
+
+    // Split by comma (user can also repeat the flag; we handle that at the clap layer if desired)
+    for raw in input.split(',') {
+        let part = raw.trim();
+        if part.is_empty() {
+            return Err("malformed --type: empty segment between commas".into());
+        }
+
+        // Allow lowercase inputs and hyphens/underscores (robust UX)
+        let normalized = part.to_ascii_lowercase().replace('-', "_");
+
+        if normalized == "all" {
+            set.extend(ReleaseKind::ALL);
+            continue;
+        }
+
+        // Let ValueEnum do the strict mapping so it's always in sync with the enum.
+        // (ValueEnum matches case-insensitively already, but we normalized above.)
+        match ReleaseKind::from_str(&normalized, true) {
+            Ok(kind) => {
+                set.insert(kind);
+            }
+            Err(_) => {
+                // Build a helpful error with allowed values
+                let allowed = ["album", "single", "appears_on", "compilation", "all"].join(", ");
+                return Err(format!(
+                    "invalid value '{part}' for --type (allowed: {allowed})"
+                ));
+            }
+        }
+    }
+
+    if set.is_empty() {
+        // This would only happen if input was something like just commas, but we guard above anyway.
+        return Err("no valid kinds provided to --type".into());
+    }
+
+    Ok(ReleaseKinds(set))
 }

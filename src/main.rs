@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use clap::{
-    CommandFactory, Parser,
+    ArgAction, CommandFactory, Parser,
     builder::{
         Styles,
         styling::{AnsiColor, Effects},
@@ -9,7 +9,7 @@ use clap::{
 };
 use clap_complete::{Shell, generate};
 
-use sporlcli::{cli, config, types::PkceToken};
+use sporlcli::{cli, config, types::PkceToken, utils};
 use tokio::sync::Mutex;
 
 fn styles() -> Styles {
@@ -66,6 +66,8 @@ struct ReleaseOptions {
     release_date: Option<String>,
     #[clap(long)]
     update: bool,
+    #[clap(long = "type", default_value = "album", value_parser = utils::parse_release_kinds, action = ArgAction::Append, num_args = 1)]
+    release_types: utils::ReleaseKinds,
     #[clap(long)]
     force: bool,
 }
@@ -108,7 +110,14 @@ async fn main() {
         }
         Command::Artists(opt) => cli::artists(opt.update, opt.search).await,
         Command::Releases(opt) => {
-            cli::releases(opt.update, opt.force, opt.previous_weeks, opt.release_date).await
+            cli::releases(
+                opt.update,
+                opt.force,
+                opt.release_types,
+                opt.previous_weeks,
+                opt.release_date,
+            )
+            .await
         }
         Command::Playlist(opt) => cli::playlist(opt.previous_weeks, opt.release_date).await,
         Command::Info(opt) => {
