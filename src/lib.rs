@@ -3,6 +3,7 @@ pub mod cli;
 pub mod config;
 pub mod management;
 pub mod server;
+pub mod spotify;
 pub mod types;
 pub mod utils;
 

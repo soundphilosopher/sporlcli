@@ -1,9 +1,8 @@
 use std::path::PathBuf;
 
 use chrono::Utc;
-use reqwest::Client;
 
-use crate::{config, types::Token};
+use crate::{spotify, types::Token};
 
 pub struct TokenManager {
     token: Token,
@@ -54,33 +53,10 @@ impl TokenManager {
     }
 
     async fn refresh_token(&self) -> Result<Token, String> {
-        let client = Client::new();
-        let res = client
-            .post(&config::spotify_apitoken_url())
-            .form(&[
-                ("grant_type", "refresh_token"),
-                ("refresh_token", &self.token.refresh_token),
-                ("client_id", &config::spotify_client_id()),
-            ])
-            .send()
-            .await
-            .map_err(|e| e.to_string())?;
-
-        let json: serde_json::Value = res.json().await.map_err(|e| e.to_string())?;
-
-        Ok(Token {
-            access_token: json["access_token"]
-                .as_str()
-                .unwrap_or_default()
-                .to_string(),
-            refresh_token: json["refresh_token"]
-                .as_str()
-                .unwrap_or_default()
-                .to_string(),
-            scope: json["scope"].as_str().unwrap_or_default().to_string(),
-            expires_in: json["expires_in"].as_i64().unwrap_or(3600) as u64,
-            obtained_at: Utc::now().timestamp() as u64,
-        })
+        match spotify::auth::refresh_token(&self.token.refresh_token).await {
+            Ok(token) => Ok(token),
+            Err(err) => Err(err.to_string()),
+        }
     }
 
     fn token_path() -> PathBuf {

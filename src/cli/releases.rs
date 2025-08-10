@@ -2,104 +2,20 @@ use std::time::Duration;
 
 use chrono::{Datelike, NaiveDate};
 use indicatif::{ProgressBar, ProgressStyle};
-use reqwest::{Client, StatusCode};
 use tabled::Table;
 use tokio::time::sleep;
 
 use crate::{
-    config, error,
+    error,
     management::{
         ArtistReleaseManager, ReleaseWeekManager, STATE_TYPE_RELEASES, StateManager, TokenManager,
     },
-    success,
-    types::{Album, AlbumResponse, ArtistReleases, ReleaseTableRow, ReleaseWeek},
+    spotify, success,
+    types::{Album, ArtistReleases, ReleaseTableRow, ReleaseWeek},
     utils, warning,
 };
 
-pub async fn releases(
-    update: bool,
-    force_update: bool,
-    release_types: utils::ReleaseKinds,
-    weeks_include: Option<u32>,
-    release_date: Option<String>,
-) {
-    if update {
-        match call_update(force_update, &release_types).await {
-            Ok(message) => success!("{}", message),
-            Err(_) => error!("Cannot update from remote"),
-        }
-
-        return;
-    }
-
-    // let release_date = match NaiveDate::parse_from_str(&album.release_date, "%Y-%m-%d")
-    let curr_date = utils::get_date_from_string(release_date);
-    let cur_year = curr_date.year();
-    let release_weeks = utils::get_custom_week_range(curr_date, weeks_include.unwrap_or(0));
-
-    for release_week in release_weeks.clone() {
-        let mut weekly_releases: Vec<Album> = match ReleaseWeekManager::new(
-            release_week.week.clone(),
-            cur_year,
-            None,
-        )
-        .load_from_cache()
-        .await
-        {
-            Ok(manager) => match manager.get_releases().await {
-                Ok(releases) => releases,
-                Err(e) => {
-                    warning!(
-                        "Failed to load releases for week {}/{}: {}\nRun sporlcli releases --update.",
-                        release_week.week.clone(),
-                        cur_year,
-                        e
-                    );
-                    continue;
-                }
-            },
-            Err(e) => {
-                warning!(
-                    "Failed to load releases for week {}/{}: {:?}\nRun sporlcli releases --update.",
-                    release_week.week.clone(),
-                    cur_year,
-                    e
-                );
-                continue;
-            }
-        };
-
-        utils::remove_duplicate_albums(&mut weekly_releases);
-
-        let mut weekly_releases_row: Vec<ReleaseTableRow> = weekly_releases
-            .into_iter()
-            .map(|a| ReleaseTableRow {
-                date: a.release_date,
-                name: a.name,
-                artists: a
-                    .artists
-                    .iter()
-                    .map(|a| a.name.clone())
-                    .collect::<Vec<String>>()
-                    .first()
-                    .unwrap_or(&String::new())
-                    .clone(),
-            })
-            .collect();
-
-        utils::sort_release_table_rows(&mut weekly_releases_row);
-
-        let table = Table::new(weekly_releases_row);
-        println!(
-            "Week: {week}\tYear: {year}\n{table}\n",
-            week = release_week.week.clone(),
-            year = cur_year,
-            table = table
-        );
-    }
-}
-
-async fn call_update(force: bool, release_types: &utils::ReleaseKinds) -> Result<String, String> {
+pub async fn update_releases(force: bool, release_types: &utils::ReleaseKinds) {
     let pb = ProgressBar::new_spinner();
     pb.set_message("Fetching releases for followed artists...");
     pb.enable_steady_tick(Duration::from_secs(100));
@@ -163,8 +79,13 @@ async fn call_update(force: bool, release_types: &utils::ReleaseKinds) -> Result
 
             artist_cached = false;
 
-            match load_releases_from_remote(artist.artist.id.clone(), &token, 50, release_types)
-                .await
+            match spotify::releases::get_release_for_artist(
+                artist.artist.id.clone(),
+                &token,
+                50,
+                release_types,
+            )
+            .await
             {
                 Ok(releases) => {
                     pb.set_message(format!(
@@ -279,47 +200,75 @@ async fn call_update(force: bool, release_types: &utils::ReleaseKinds) -> Result
     }
 
     pb.finish_and_clear();
-    Ok("Release cache updated.".to_string())
+    success!("Release cache updated.");
 }
 
-async fn load_releases_from_remote(
-    artist_id: String,
-    token: &str,
-    limit: u32,
-    release_types: &utils::ReleaseKinds,
-) -> Result<Vec<Album>, reqwest::Error> {
-    let client = Client::new();
-    let api_url = format!(
-        "{uri}/artists/{id}/albums?include_groups={include_groups}&limit={limit}",
-        uri = &config::spotify_apiurl(),
-        id = artist_id,
-        include_groups = format!("{}", release_types),
-        limit = limit
-    );
+pub async fn list_releases(weeks_include: Option<u32>, release_date: Option<String>) {
+    // let release_date = match NaiveDate::parse_from_str(&album.release_date, "%Y-%m-%d")
+    let curr_date = utils::get_date_from_string(release_date);
+    let cur_year = curr_date.year();
+    let release_weeks = utils::get_custom_week_range(curr_date, weeks_include.unwrap_or(0));
 
-    let response = client.get(&api_url).bearer_auth(token).send().await?;
-    // check for retry-after header
-    if response.status() == StatusCode::TOO_MANY_REQUESTS {
-        if let Some(retry_after) = response.headers().get("retry-after") {
-            let retry_after = retry_after
-                .to_str()
-                .unwrap_or("0")
-                .parse::<u64>()
-                .unwrap_or(0);
-            if retry_after <= 120 {
-                sleep(Duration::from_secs(retry_after)).await;
-            } else {
+    for release_week in release_weeks.clone() {
+        let mut weekly_releases: Vec<Album> = match ReleaseWeekManager::new(
+            release_week.week.clone(),
+            cur_year,
+            None,
+        )
+        .load_from_cache()
+        .await
+        {
+            Ok(manager) => match manager.get_releases().await {
+                Ok(releases) => releases,
+                Err(e) => {
+                    warning!(
+                        "Failed to load releases for week {}/{}: {}\nRun sporlcli releases update.",
+                        release_week.week.clone(),
+                        cur_year,
+                        e
+                    );
+                    continue;
+                }
+            },
+            Err(e) => {
                 warning!(
-                    "Retry after has reached a abnormal high of {} seconds. Try your best tommorrow again.",
-                    retry_after
+                    "Failed to load releases for week {}/{}: {:?}\nRun sporlcli releases update.",
+                    release_week.week.clone(),
+                    cur_year,
+                    e
                 );
+                continue;
             }
-        }
+        };
+
+        utils::remove_duplicate_albums(&mut weekly_releases);
+
+        let mut weekly_releases_row: Vec<ReleaseTableRow> = weekly_releases
+            .into_iter()
+            .map(|a| ReleaseTableRow {
+                date: a.release_date,
+                name: a.name,
+                artists: a
+                    .artists
+                    .iter()
+                    .map(|a| a.name.clone())
+                    .collect::<Vec<String>>()
+                    .first()
+                    .unwrap_or(&String::new())
+                    .clone(),
+            })
+            .collect();
+
+        utils::sort_release_table_rows(&mut weekly_releases_row);
+
+        let table = Table::new(weekly_releases_row);
+        println!(
+            "Week: {week}\tYear: {year}\n{table}\n",
+            week = release_week.week.clone(),
+            year = cur_year,
+            table = table
+        );
     }
-
-    let json = response.json::<AlbumResponse>().await?;
-
-    Ok(json.items)
 }
 
 async fn prepare_remote_releases(remote_releases: Vec<Album>) -> Result<Vec<ReleaseWeek>, String> {

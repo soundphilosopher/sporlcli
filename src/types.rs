@@ -57,7 +57,6 @@ pub struct AlbumResponse {
 pub struct Album {
     pub id: String,
     pub name: String,
-    pub r#type: String,
     pub release_date: String,
     pub release_date_precision: String,
     pub album_type: String,

@@ -1,6 +1,6 @@
 use chrono::Utc;
 
-use crate::{cli::artists, error, info, management::ArtistReleaseManager, utils, warning};
+use crate::{error, info, management::ArtistReleaseManager, spotify, utils, warning};
 
 struct ReleaseWeekInfo {
     week: u32,
@@ -30,7 +30,7 @@ pub async fn info(
             Err(_) => 0,
         };
 
-        let artist_remote_count = match artists::get_remote_artist_count().await {
+        let artist_remote_count = match spotify::artists::get_total_artist_count().await {
             Ok(c) => c,
             Err(_) => 0,
         };

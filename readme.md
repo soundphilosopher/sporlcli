@@ -40,9 +40,12 @@ TBA
 - [x] Fetch releases for cached artists
 - [x] Cache artist-releases to local file cache
 - [x] Create playlist for fetched releases
-- [ ] Expose necessary information in readme
 - [x] Add possibility to fetch Singles and others from Spotify API
 - [x] Automatically remove artist state cache after fetching all releases
 - [x] Remove static public configuration
+- [x] Modulize calls to Spotify API
+- [x] Make commands more useable
 - [ ] Integrate authentication with more than one Spotiy App
+- [ ] Expose necessary information in readme
+- [ ] Create LICENSE file
 - [ ] Add to crates.io

@@ -1,17 +1,8 @@
-use std::time::Duration;
-
 use chrono::Datelike;
-use reqwest::{Client, StatusCode};
-use tokio::time::sleep;
 
 use crate::{
-    config, error, info,
-    management::TokenManager,
-    success,
-    types::{
-        AddTrackToPlaylistRequest, AddTrackToPlaylistResponse, Album, CreatePlaylistRequest,
-        CreatePlaylistResponse, GetSeveralAlbumsResponse, GetUserPlaylistsResponse, Track,
-    },
+    info, spotify, success,
+    types::{Album, GetSeveralAlbumsResponse, Track},
     utils, warning,
 };
 
@@ -27,7 +18,7 @@ pub async fn playlist(previous_weeks: Option<u32>, release_date: Option<String>)
             curr_year.clone()
         );
 
-        let playlist_exists = match playlist_already_exists(&playlist_name).await {
+        let playlist_exists = match spotify::playlist::exists(&playlist_name).await {
             Ok(exists) => exists,
             Err(e) => {
                 warning!("Failed to check if playlist exists: {}", e);
@@ -66,7 +57,8 @@ pub async fn playlist(previous_weeks: Option<u32>, release_date: Option<String>)
 
         for chunk in release_chunks {
             let chunk = chunk.to_vec();
-            let handle = tokio::spawn(async move { get_several_albums(&chunk).await });
+            let handle =
+                tokio::spawn(async move { spotify::releases::get_several_releases(&chunk).await });
             handles.push(handle);
         }
 
@@ -96,7 +88,7 @@ pub async fn playlist(previous_weeks: Option<u32>, release_date: Option<String>)
             curr_year.clone()
         );
 
-        let playlist_id: Option<String> = match create_playlist(playlist_name).await {
+        let playlist_id: Option<String> = match spotify::playlist::create(playlist_name).await {
             Ok(resp) => {
                 success!(
                     "Playlist for release week {}/{} created.",
@@ -129,7 +121,7 @@ pub async fn playlist(previous_weeks: Option<u32>, release_date: Option<String>)
 
             let tracks_chunks = tracks.chunks(100);
             for chunk in tracks_chunks {
-                match add_tracks_to_playlist(playlist_id.clone(), chunk.to_vec()).await {
+                match spotify::playlist::add_tracks(playlist_id.clone(), chunk.to_vec()).await {
                     Ok(_) => success!(
                         "Tracks added to playlist for release week {}/{}",
                         release_week.week.clone(),
@@ -139,219 +131,5 @@ pub async fn playlist(previous_weeks: Option<u32>, release_date: Option<String>)
                 };
             }
         }
-    }
-}
-
-async fn get_several_albums(
-    albums: &Vec<Album>,
-) -> Result<GetSeveralAlbumsResponse, reqwest::Error> {
-    let album_ids = albums
-        .iter()
-        .map(|a| a.id.as_str())
-        .collect::<Vec<_>>()
-        .join(",");
-
-    let api_url = format!(
-        "{url}/albums?ids={album_ids}",
-        url = &config::spotify_apiurl(),
-        album_ids = album_ids
-    );
-
-    let mut token_mgr = match TokenManager::load().await {
-        Ok(manager) => manager,
-        Err(e) => {
-            error!(
-                "Failed to load token. Please run sporlcli auth\n Error: {}",
-                e
-            );
-        }
-    };
-
-    loop {
-        let client = Client::new();
-        let token = token_mgr.get_valid_token().await;
-        let response = client.get(&api_url).bearer_auth(token).send().await;
-
-        let response = match response {
-            Ok(resp) => match resp.error_for_status() {
-                Ok(valid_response) => valid_response,
-                Err(err) => {
-                    if let Some(status) = err.status() {
-                        if status == StatusCode::BAD_GATEWAY {
-                            sleep(Duration::from_secs(10)).await;
-                            continue; // retry
-                        }
-                    }
-
-                    return Err(err); // propagate other errors
-                }
-            },
-            Err(err) => {
-                return Err(err);
-            } // network or reqwest error
-        };
-
-        let json = response.json::<GetSeveralAlbumsResponse>().await?;
-        return Ok(json);
-    }
-}
-
-async fn create_playlist(name: String) -> Result<CreatePlaylistResponse, reqwest::Error> {
-    let mut token_mgr = match TokenManager::load().await {
-        Ok(manager) => manager,
-        Err(e) => {
-            error!(
-                "Failed to load token. Please run sporlcli auth\n Error: {}",
-                e
-            );
-        }
-    };
-
-    let api_url = format!(
-        "{url}/users/{user_id}/playlists",
-        url = &config::spotify_apiurl(),
-        user_id = &config::spotify_user()
-    );
-
-    loop {
-        let client = Client::new();
-        let token = token_mgr.get_valid_token().await;
-        let response = client
-            .post(&api_url)
-            .bearer_auth(token)
-            .json(&serde_json::json!(CreatePlaylistRequest {
-                name: name.clone(),
-                description: "[auto] Generated by SporlCLI".to_string(),
-                public: false,
-                collaborative: false
-            }))
-            .send()
-            .await;
-
-        let response = match response {
-            Ok(resp) => match resp.error_for_status() {
-                Ok(valid_response) => valid_response,
-                Err(err) => {
-                    if let Some(status) = err.status() {
-                        if status == StatusCode::BAD_GATEWAY {
-                            sleep(Duration::from_secs(10)).await;
-                            continue; // retry
-                        }
-                    }
-
-                    return Err(err); // propagate other errors
-                }
-            },
-            Err(err) => {
-                return Err(err);
-            } // network or reqwest error
-        };
-
-        let json = response.json::<CreatePlaylistResponse>().await?;
-        return Ok(json);
-    }
-}
-
-async fn add_tracks_to_playlist(
-    playlist_id: String,
-    tracks: Vec<Track>,
-) -> Result<AddTrackToPlaylistResponse, reqwest::Error> {
-    let mut token_mgr = match TokenManager::load().await {
-        Ok(manager) => manager,
-        Err(e) => {
-            error!(
-                "Failed to load token. Please run sporlcli auth\n Error: {}",
-                e
-            );
-        }
-    };
-
-    let api_url = format!(
-        "{url}/playlists/{playlist_id}/tracks",
-        url = &config::spotify_apiurl(),
-        playlist_id = playlist_id,
-    );
-
-    loop {
-        let client = Client::new();
-        let token = token_mgr.get_valid_token().await;
-        let response = client
-            .post(&api_url)
-            .bearer_auth(token)
-            .json(&serde_json::json!(AddTrackToPlaylistRequest {
-                uris: tracks.iter().map(|track| track.uri.clone()).collect()
-            }))
-            .send()
-            .await;
-
-        let response = match response {
-            Ok(resp) => match resp.error_for_status() {
-                Ok(valid_response) => valid_response,
-                Err(err) => {
-                    if let Some(status) = err.status() {
-                        if status == StatusCode::BAD_GATEWAY {
-                            sleep(Duration::from_secs(10)).await;
-                            continue; // retry
-                        }
-                    }
-
-                    return Err(err); // propagate other errors
-                }
-            },
-            Err(err) => {
-                return Err(err);
-            } // network or reqwest error
-        };
-
-        let json = response.json::<AddTrackToPlaylistResponse>().await?;
-        return Ok(json);
-    }
-}
-
-async fn playlist_already_exists(playlist_name: &str) -> Result<bool, reqwest::Error> {
-    let mut token_mgr = match TokenManager::load().await {
-        Ok(manager) => manager,
-        Err(e) => {
-            error!(
-                "Failed to load token. Please run sporlcli auth\n Error: {}",
-                e
-            );
-        }
-    };
-
-    let api_url = format!("{url}/me/playlists", url = &config::spotify_apiurl());
-
-    loop {
-        let client = Client::new();
-        let token = token_mgr.get_valid_token().await;
-        let response = client.get(&api_url).bearer_auth(token).send().await;
-
-        let response = match response {
-            Ok(resp) => match resp.error_for_status() {
-                Ok(valid_response) => valid_response,
-                Err(err) => {
-                    if let Some(status) = err.status() {
-                        if status == StatusCode::BAD_GATEWAY {
-                            sleep(Duration::from_secs(10)).await;
-                            continue; // retry
-                        }
-                    }
-
-                    return Err(err); // propagate other errors
-                }
-            },
-            Err(err) => {
-                return Err(err);
-            } // network or reqwest error
-        };
-
-        let json = response.json::<GetUserPlaylistsResponse>().await?;
-        for playlist in json.items {
-            if playlist.name == playlist_name {
-                return Ok(true);
-            }
-        }
-
-        return Ok(false);
     }
 }
