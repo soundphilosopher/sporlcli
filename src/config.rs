@@ -14,6 +14,10 @@ pub async fn load_env() -> Result<(), String> {
     Ok(())
 }
 
+pub fn server_addr() -> String {
+    env::var("SERVER_ADDRESS").expect("SERVER_ADDRESS must be set")
+}
+
 pub fn spotify_user() -> String {
     env::var("SPOTIFY_USER_ID").expect("SPOTIFY_USER_ID must be set")
 }
