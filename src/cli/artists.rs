@@ -22,17 +22,13 @@ pub async fn update_artists(force: bool) {
         Err(_) => 0,
     };
 
-    let max_new: u64 = if force {
-        artist_remote_count
+    let max_new: u64 = if artist_remote_count > artist_cache_count as u64 && !force {
+        artist_remote_count - artist_cache_count as u64
     } else {
-        if artist_remote_count > artist_cache_count as u64 {
-            artist_remote_count - artist_cache_count as u64
-        } else {
-            0
-        }
+        0
     };
 
-    if let Err(e) = load_remote_artists(max_new).await {
+    if let Err(e) = load_remote_artists(max_new, force).await {
         error!("Cannot update artists. Err: {}", e)
     }
 }
@@ -78,9 +74,18 @@ async fn load_cached_artists() -> Result<Vec<Artist>, String> {
     }
 }
 
-async fn load_remote_artists(max_new: u64) -> Result<Vec<ArtistReleases>, reqwest::Error> {
+async fn load_remote_artists(
+    max_new: u64,
+    force: bool,
+) -> Result<Vec<ArtistReleases>, reqwest::Error> {
     let mut arm: ArtistReleaseManager = match ArtistReleaseManager::load().await {
-        Ok(arm) => arm,
+        Ok(arm) => {
+            if force {
+                ArtistReleaseManager::new(None)
+            } else {
+                arm
+            }
+        }
         Err(_) => ArtistReleaseManager::new(None),
     };
 
