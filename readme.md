@@ -423,13 +423,12 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 If you encounter any issues or have questions:
 
-1. Check the [documentation](https://yourusername.github.io/sporlcli/)
-2. Search existing [issues](https://github.com/yourusername/sporlcli/issues)
+1. Check the [documentation](https://soundphilosopher.github.io/sporl/)
+2. Search existing [issues](https://github.com/soundphilosopher/sporl/issues)
 3. Create a new issue with detailed information
 
 ## 🗺️ Roadmap
 
-- [ ] Web interface for easier management
 - [ ] Support for multiple Spotify accounts
 - [ ] Advanced playlist customization options
 - [ ] Release notifications and alerts
