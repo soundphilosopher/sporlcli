@@ -423,9 +423,8 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 If you encounter any issues or have questions:
 
-1. Check the [documentation](https://soundphilosopher.github.io/sporl/)
-2. Search existing [issues](https://github.com/soundphilosopher/sporl/issues)
-3. Create a new issue with detailed information
+1. Search existing [issues](https://github.com/soundphilosopher/sporl/issues)
+2. Create a new issue with detailed information
 
 ## 🗺️ Roadmap
 
