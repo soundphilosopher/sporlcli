@@ -18,7 +18,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Install rust toolchain
+      - name: Install Rust toolchain
         uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
@@ -29,17 +29,17 @@ jobs:
           command: doc
           args: --no-deps --document-private-items
 
-      - name: Generate index.html
+      - name: Generate index.html redirect
         run: echo '<meta http-equiv="refresh" content="0;url=wasm_oidc_plugin/index.html">' > target/doc/index.html
 
-      - name: Debug doc output
+      - name: List generated docs (for debug)
         run: ls -R target/doc
 
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v4
 
       - name: Upload GitHub Pages artifact
-        uses: actions/upload-pages-artifact@v2
+        uses: actions/upload-pages-artifact@v3
         with:
           path: ./target/doc
 
