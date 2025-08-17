@@ -25,7 +25,7 @@ A powerful command-line tool for tracking music releases from your followed arti
 ```bash
 # Clone the repository
 git clone https://github.com/soundphilosopher/sporl
-cd sporlcli
+cd sporl
 
 # Build and install
 cargo install --path .
