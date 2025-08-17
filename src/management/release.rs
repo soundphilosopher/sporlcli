@@ -45,7 +45,7 @@ impl From<Error> for ReleaseError {
 /// # Cache Organization
 ///
 /// Releases are stored in a hierarchical directory structure:
-/// ```
+/// ```text
 /// ~/.local/share/sporlcli/releases/
 /// ├── 2023/
 /// │   ├── 1/releases.json

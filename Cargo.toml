@@ -3,7 +3,7 @@ name = "sporlcli"
 version = "0.1.0-dev"
 edition = "2024"
 description = "A command-line interface for the Spotify API to fetch new releases of followed artists."
-license = "UNLICENSED"
+license = "MIT"
 
 [[bin]]
 name = "sporlcli"

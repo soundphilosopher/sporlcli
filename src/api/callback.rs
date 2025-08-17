@@ -60,7 +60,7 @@ use crate::{spotify, types::PkceToken, warning};
 ///
 /// # Example
 ///
-/// ```
+/// ```text
 /// // Called automatically by Spotify's OAuth redirect:
 /// // GET /callback?code=AQC...&state=xyz
 /// ```

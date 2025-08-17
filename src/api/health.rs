@@ -31,7 +31,7 @@ use serde_json::{Value, json};
 ///
 /// # Example
 ///
-/// ```
+/// ```text
 /// // GET /health
 /// // Response: {"status": "ok", "version": "1.0.0"}
 /// ```
