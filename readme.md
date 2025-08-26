@@ -313,20 +313,20 @@ Approximate local storage usage:
 The `.env` file supports these variables:
 
 ```bash
+# Local Server Configuration (Web App Redirect URI)
+SERVER_ADDRESS=127.0.0.1:8080
+
 # Spotify API Configuration
 SPOTIFY_API_AUTH_CLIENT_ID=your_client_id
 SPOTIFY_API_AUTH_CLIENT_SECRET=your_client_secret
-SPOTIFY_API_REDIRECT_URI=http://localhost:8080/callback
-SPOTIFY_API_AUTH_SCOPE=user-follow-read playlist-modify-public playlist-modify-private
 SPOTIFY_USER_ID=your_spotify_username
 
-# API Endpoints (usually don't need to change)
+# Spotify API Configuration and Endpoints (usually don't need to change)
+SPOTIFY_API_REDIRECT_URI=http://${SERVER_ADDRESS}/callback
+SPOTIFY_API_AUTH_SCOPE="user-library-read user-follow-read user-read-email user-read-private playlist-modify-private playlist-modify-public playlist-read-private"
 SPOTIFY_API_AUTH_URL=https://accounts.spotify.com/authorize
 SPOTIFY_API_TOKEN_URL=https://accounts.spotify.com/api/token
 SPOTIFY_API_URL=https://api.spotify.com/v1
-
-# Local Server Configuration
-SERVER_ADDRESS=127.0.0.1:8080
 ```
 
 ## 🔧 Advanced Usage
