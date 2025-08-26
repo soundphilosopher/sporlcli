@@ -113,22 +113,21 @@ fn get_saturday_before_or_on(date: NaiveDate) -> NaiveDate {
 pub fn get_release_week_number(date: NaiveDate) -> u32 {
     let current_week_start = get_saturday_before_or_on(date);
 
-    // If the Saturday that starts this week is in the previous year,
-    // then this date belongs to the previous year's week numbering
-    if current_week_start.year() < date.year() {
-        // Calculate week number based on the previous year
-        let prev_year = current_week_start.year();
-        let jan1_prev = NaiveDate::from_ymd_opt(prev_year, 1, 1).unwrap();
-        let first_week_start_prev = get_saturday_before_or_on(jan1_prev);
-        let diff = current_week_start - first_week_start_prev;
-        (diff.num_days() / 7) as u32
+    // Determine which year's scheme applies (previous year if the week-start Saturday is in the prev year)
+    let anchor_year = if current_week_start.year() < date.year() {
+        current_week_start.year()
     } else {
-        // Normal case: the Saturday is in the same year as the date
-        let jan1 = NaiveDate::from_ymd_opt(date.year(), 1, 1).unwrap();
-        let first_week_start = get_saturday_before_or_on(jan1);
-        let diff = current_week_start - first_week_start;
-        (diff.num_days() / 7) as u32
-    }
+        date.year()
+    };
+
+    let jan1 = NaiveDate::from_ymd_opt(anchor_year, 1, 1).unwrap();
+    let first_week_start = get_saturday_before_or_on(jan1);
+
+    let diff_weeks = ((current_week_start - first_week_start).num_days() / 7) as u32;
+
+    // If Jan 1 is Saturday *for the anchor year*, shift to 1-based (avoids week 0 in those years)
+    let jan1_is_sat = jan1.weekday() == Weekday::Sat;
+    diff_weeks + if jan1_is_sat { 1 } else { 0 }
 }
 
 /// Builds a complete week structure starting from the Saturday before or on the given date.
