@@ -111,11 +111,24 @@ fn get_saturday_before_or_on(date: NaiveDate) -> NaiveDate {
 /// let week_num = get_release_week_number(date); // Returns the week number for Jan 15, 2023
 /// ```
 pub fn get_release_week_number(date: NaiveDate) -> u32 {
-    let jan1 = NaiveDate::from_ymd_opt(date.year(), 1, 1).unwrap();
-    let first_week_start = get_saturday_before_or_on(jan1);
     let current_week_start = get_saturday_before_or_on(date);
-    let diff = current_week_start - first_week_start;
-    (diff.num_days() / 7 + 1) as u32
+
+    // If the Saturday that starts this week is in the previous year,
+    // then this date belongs to the previous year's week numbering
+    if current_week_start.year() < date.year() {
+        // Calculate week number based on the previous year
+        let prev_year = current_week_start.year();
+        let jan1_prev = NaiveDate::from_ymd_opt(prev_year, 1, 1).unwrap();
+        let first_week_start_prev = get_saturday_before_or_on(jan1_prev);
+        let diff = current_week_start - first_week_start_prev;
+        (diff.num_days() / 7) as u32
+    } else {
+        // Normal case: the Saturday is in the same year as the date
+        let jan1 = NaiveDate::from_ymd_opt(date.year(), 1, 1).unwrap();
+        let first_week_start = get_saturday_before_or_on(jan1);
+        let diff = current_week_start - first_week_start;
+        (diff.num_days() / 7) as u32
+    }
 }
 
 /// Builds a complete week structure starting from the Saturday before or on the given date.
