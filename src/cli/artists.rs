@@ -61,7 +61,13 @@ use crate::{
 /// - Progress indicators help users understand operation status
 pub async fn update_artists(force: bool) {
     let artist_cache_count = match ArtistReleaseManager::load().await {
-        Ok(arm) => arm.count_artists(),
+        Ok(arm) => {
+            if !force {
+                arm.count_artists()
+            } else {
+                0
+            }
+        }
         Err(_) => 0,
     };
 
@@ -70,7 +76,7 @@ pub async fn update_artists(force: bool) {
         Err(_) => 0,
     };
 
-    let max_new: u64 = if artist_remote_count > artist_cache_count as u64 && !force {
+    let max_new: u64 = if artist_remote_count > artist_cache_count as u64 {
         artist_remote_count - artist_cache_count as u64
     } else {
         0
