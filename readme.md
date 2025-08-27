@@ -250,9 +250,13 @@ sporlcli completions powershell > sporlcli.ps1
 
 ### Release Week System
 - Weeks start on Saturday and end on Friday
-- Week 1 begins on the Saturday before or on January 1st
+- Week 1 begins on the Saturday after or on January 1st
 - Consistent numbering system for reliable organization
-- Example: Week 42 of 2023 might be October 14-20, 2023
+- Release years start with week 1 and end with week 52
+- Examples:
+  - Week 1 of 2024 is January 6-12, 2024
+  - Week 52 of 2024 is December 28, 2024 - January 3, 2025
+  - Week 1 of 2025 is January 4-10, 2025
 
 ## ⚙️ Configuration Reference
 
