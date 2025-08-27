@@ -11,12 +11,14 @@ A powerful command-line tool for tracking music releases from your followed arti
 - **🔍 Flexible Filtering**: Filter by release types (albums, singles, EPs, compilations)
 - **📊 Statistics & Info**: Get insights about your followed artists and releases
 - **🔐 Secure Authentication**: OAuth 2.0 PKCE flow for secure Spotify integration
+- **🌐 Cross-Platform**: Works on Linux, macOS, and Windows
+- **📱 Resume Capability**: Interrupted operations can be resumed automatically
 
 ## 🚀 Quick Start
 
 ### Prerequisites
 
-- Rust 1.70+ installed
+- Rust 1.70+ installed ([Install Rust](https://rustup.rs/))
 - Spotify account (Premium recommended for playlist features)
 - Spotify Developer App (for API credentials)
 
@@ -33,34 +35,85 @@ cargo install --path .
 
 ### Setup
 
-1. **Create a Spotify App**:
-   - Go to [Spotify Developer Dashboard](https://developer.spotify.com/dashboard)
-   - Create a new app
-   - Note your Client ID and Client Secret
-   - Add `http://localhost:8080/callback` to Redirect URIs
+#### 1. Create a Spotify App
 
-2. **Configure Environment**:
-   ```bash
-   # Copy the example configuration
-   cp ~/.local/share/sporlcli/.env.example ~/.local/share/sporlcli/.env
+- Go to [Spotify Developer Dashboard](https://developer.spotify.com/dashboard)
+- Create a new app with these settings:
+  - **App Name**: SporlCLI (or your preferred name)
+  - **App Description**: Personal release tracker
+  - **Website**: Not required
+  - **Redirect URIs**: `http://127.0.0.1:8080/callback`
+- Note your **Client ID** (you won't need the Client Secret for PKCE flow)
 
-   # Edit with your Spotify app credentials
-   nano ~/.local/share/sporlcli/.env
-   ```
+#### 2. Configure Environment
 
-3. **Authenticate**:
-   ```bash
-   sporlcli auth
-   ```
+The configuration file location depends on your operating system:
 
-4. **Initial Setup**:
-   ```bash
-   # Fetch your followed artists
-   sporlcli artists update
+**Linux:**
+```bash
+# Configuration directory
+~/.local/share/sporlcli/
 
-   # Fetch release data
-   sporlcli releases update
-   ```
+# Copy and edit the example configuration
+cp ~/.local/share/sporlcli/.env.example ~/.local/share/sporlcli/.env
+nano ~/.local/share/sporlcli/.env
+```
+
+**macOS:**
+```bash
+# Configuration directory
+~/Library/Application Support/sporlcli/
+
+# Copy and edit the example configuration
+cp "~/Library/Application Support/sporlcli/.env.example" "~/Library/Application Support/sporlcli/.env"
+nano "~/Library/Application Support/sporlcli/.env"
+```
+
+**Windows:**
+```powershell
+# Configuration directory
+%LOCALAPPDATA%\sporlcli\
+
+# Copy and edit the example configuration (PowerShell)
+Copy-Item "$env:LOCALAPPDATA\sporlcli\.env.example" "$env:LOCALAPPDATA\sporlcli\.env"
+notepad "$env:LOCALAPPDATA\sporlcli\.env"
+```
+
+**Required Configuration:**
+```bash
+# Local Server Configuration (OAuth callback)
+SERVER_ADDRESS="127.0.0.1:8080"
+
+# Spotify API Configuration
+SPOTIFY_API_AUTH_CLIENT_ID=your_client_id_here
+SPOTIFY_USER_ID=your_spotify_username
+
+# These usually don't need to be changed
+SPOTIFY_API_REDIRECT_URI="http://${SERVER_ADDRESS}/callback"
+SPOTIFY_API_AUTH_SCOPE="user-library-read user-follow-read user-read-email user-read-private playlist-modify-private playlist-modify-public playlist-read-private"
+SPOTIFY_API_AUTH_URL="https://accounts.spotify.com/authorize"
+SPOTIFY_API_TOKEN_URL="https://accounts.spotify.com/api/token"
+SPOTIFY_API_URL="https://api.spotify.com/v1"
+```
+
+**Note:** You do NOT need `SPOTIFY_API_AUTH_CLIENT_SECRET` as this application uses the PKCE flow for enhanced security.
+
+#### 3. Authenticate
+
+```bash
+# Authenticate with Spotify (this will open your browser)
+sporlcli auth
+```
+
+#### 4. Initial Setup
+
+```bash
+# Fetch your followed artists
+sporlcli artists update
+
+# Fetch release data
+sporlcli releases update
+```
 
 ## 📖 Usage
 
@@ -75,6 +128,9 @@ sporlcli auth
 # Update your followed artists cache
 sporlcli artists update
 
+# Force complete refresh of artists
+sporlcli artists update --force
+
 # List all followed artists
 sporlcli artists
 
@@ -87,7 +143,7 @@ sporlcli artists --search "arctic monkeys"
 # Update release data for all followed artists
 sporlcli releases update
 
-# Force complete refresh
+# Force complete refresh of all release data
 sporlcli releases update --force
 
 # Update specific release types
@@ -99,8 +155,11 @@ sporlcli releases
 # Show last 4 weeks of releases
 sporlcli releases --previous-weeks 4
 
-# Show releases for a specific date
+# Show releases for a specific date's week
 sporlcli releases --release-date 2023-12-25
+
+# Show 2 weeks before a specific date
+sporlcli releases --release-date 2023-12-25 --previous-weeks 2
 ```
 
 ### Creating Playlists
@@ -111,8 +170,11 @@ sporlcli playlist
 # Create playlists for last 3 weeks
 sporlcli playlist --previous-weeks 3
 
-# Create playlist for specific date
+# Create playlist for specific date's week
 sporlcli playlist --release-date 2023-12-01
+
+# Create playlists for 2 weeks before specific date
+sporlcli playlist --release-date 2023-12-01 --previous-weeks 2
 ```
 
 ### Information & Statistics
@@ -120,7 +182,7 @@ sporlcli playlist --release-date 2023-12-01
 # Show current release week info
 sporlcli info --release-week
 
-# Show artist statistics
+# Show artist statistics (cache vs remote count)
 sporlcli info --artists
 
 # Show previous weeks information
@@ -132,162 +194,24 @@ sporlcli info --release-date 2023-12-25
 
 ### Shell Completions
 ```bash
-# Generate completions for your shell
+# Bash
 sporlcli completions bash > ~/.bash_completions/sporlcli
+
+# Zsh
 sporlcli completions zsh > ~/.zsh/completions/_sporlcli
+
+# Fish
 sporlcli completions fish > ~/.config/fish/completions/sporlcli.fish
+
+# PowerShell (Windows)
+sporlcli completions powershell > sporlcli.ps1
 ```
-
-## ⚠️ Limitations & Considerations
-
-### Spotify API Rate Limits
-
-SporlCLI respects Spotify's API rate limits to ensure reliable operation:
-
-- **Rate Limit**: ~100 requests per minute per application
-- **Burst Limit**: Temporary higher rates allowed, but sustained high usage is throttled
-- **Retry-After**: The tool automatically respects `Retry-After` headers (up to 2 minutes)
-- **Exponential Backoff**: Built-in delays between batch operations (30 seconds between artist chunks)
-
-**Impact on Usage**:
-- Initial setup for users with many followed artists (500+) may take 15-30 minutes
-- Force updates (`--force`) will always take longer than incremental updates
-- Large playlist creation operations may have delays between batches
-
-### Account Requirements
-
-#### Basic Functionality
-- **Free Spotify Account**: Required for authentication and artist following
-- **Followed Artists**: You must follow artists on Spotify for the tool to track their releases
-- **API Access**: Requires creating a Spotify Developer App (free)
-
-#### Premium Features
-- **Playlist Creation**: Requires Spotify Premium subscription
-- **Playlist Modification**: Premium account needed to create/modify playlists
-- **Track Previews**: Full track access requires Premium
-
-### Data Limitations
-
-#### Release Data Quality
-- **Date Precision**: Only releases with day-precision dates are processed
-  - ✅ Included: "2023-10-15" (exact date)
-  - ❌ Excluded: "2023-10" (month only) or "2023" (year only)
-- **Regional Availability**: Some releases may not be available in your market
-- **Release Types**: Limited to Spotify's classification (album, single, compilation, appears_on)
-
-#### Historical Data
-- **Spotify Limitations**: Cannot fetch releases older than what Spotify provides in artist discography
-- **Cache Dependency**: Historical data depends on when you first ran updates
-- **No Backfill**: Cannot retroactively get releases from before you followed an artist
-
-### Performance Considerations
-
-#### Initial Setup Time
-For reference, typical setup times based on followed artists:
-- **< 50 artists**: 2-5 minutes
-- **50-200 artists**: 5-15 minutes
-- **200-500 artists**: 15-30 minutes
-- **500+ artists**: 30+ minutes
-
-#### Storage Requirements
-Approximate local storage usage:
-- **Artist Cache**: ~1-5 MB (depending on number of followed artists)
-- **Release Cache**: ~10-50 MB per year of data
-- **Total**: Usually under 100 MB for typical usage
-
-#### Network Usage
-- **Initial Update**: ~1-10 MB download (depends on artist count and release volume)
-- **Incremental Updates**: ~100 KB - 2 MB per update
-- **API Calls**: ~2-5 calls per artist during updates
-
-### Technical Limitations
-
-#### Authentication
-- **Token Expiry**: Access tokens expire after 1 hour (automatically refreshed)
-- **Refresh Token Rotation**: Refresh tokens may rotate and require re-authentication
-- **Scope Requirements**: Specific OAuth scopes needed for different features
-- **Browser Dependency**: Initial auth requires browser access for OAuth flow
-
-#### Concurrent Usage
-- **Single Instance**: Designed for single-user, single-instance usage
-- **File Locking**: No protection against concurrent access to cache files
-- **State Conflicts**: Running multiple updates simultaneously may cause issues
-
-#### Platform Support
-- **Tested Platforms**: Linux, macOS, Windows 10+
-- **ARM Support**: Should work but not extensively tested
-- **Container Usage**: Requires special setup for OAuth browser flow
-
-### API Dependencies
-
-#### Spotify Web API
-- **Service Availability**: Dependent on Spotify API uptime
-- **API Changes**: Breaking changes in Spotify API may require tool updates
-- **Feature Deprecation**: Some features may become unavailable if Spotify removes API endpoints
-
-#### Third-Party Dependencies
-- **OAuth Flow**: Depends on system browser availability
-- **Local Server**: Requires ability to bind to localhost:8080 (configurable)
-- **Network Access**: Requires unrestricted HTTPS access to Spotify's APIs
-
-### Known Issues & Workarounds
-
-#### Common Problems
-
-1. **"Too Many Requests" Errors**
-   - **Cause**: Hitting rate limits during large updates
-   - **Solution**: Tool automatically retries with delays
-   - **Workaround**: Use `--force` sparingly, prefer incremental updates
-
-2. **Missing Recent Releases**
-   - **Cause**: Spotify may have delays in making new releases available via API
-   - **Solution**: Run `sporlcli releases update` periodically
-   - **Timing**: New releases typically appear within 24-48 hours
-
-3. **Playlist Creation Failures**
-   - **Cause**: Insufficient permissions or non-Premium account
-   - **Solution**: Ensure Premium account and proper OAuth scopes
-   - **Check**: Verify `playlist-modify-public` and `playlist-modify-private` scopes
-
-4. **Large Artist Collections**
-   - **Issue**: Very long initial update times (1000+ artists)
-   - **Workaround**: Run initial update during off-peak hours
-   - **Alternative**: Consider unfollowing inactive artists to improve performance
-
-#### Browser-Related Issues
-
-1. **OAuth Browser Won't Open**
-   - **Manual Solution**: Copy URL from terminal and open manually
-   - **SSH/Remote**: Use port forwarding or run auth on local machine
-
-2. **Corporate Networks**
-   - **Firewall Issues**: May block Spotify API access
-   - **Proxy Problems**: May interfere with OAuth flow
-   - **Solution**: Contact IT team for API access allowlist
-
-### Best Practices
-
-#### For Optimal Performance
-- Run incremental updates regularly rather than forcing full refreshes
-- Update artists monthly, releases weekly
-- Use specific release types (`--type album`) instead of `all` when possible
-- Set up automated updates during low-usage periods
-
-#### For Reliability
-- Monitor cache directory disk space (~100 MB buffer recommended)
-- Re-authenticate if experiencing persistent auth errors
-- Keep tool updated for latest Spotify API compatibility
-- Backup cache files before major version updates
-
-#### For Large Collections
-- Consider using release type filters to reduce API calls
-- Run updates during off-peak hours to avoid rate limiting
-- Use `--previous-weeks` parameter judiciously to limit data fetched
-- Monitor network usage if on metered connections
 
 ## 🏗️ Architecture
 
 ### Data Organization
+
+**Linux:**
 ```
 ~/.local/share/sporlcli/
 ├── cache/
@@ -300,30 +224,61 @@ Approximate local storage usage:
 ├── state/
 │   ├── state_artists.json     # Update progress tracking
 │   └── state_releases.json    # Release update state
-└── .env                        # Configuration
+├── .env                        # Configuration
+└── .env.example               # Configuration template
+```
+
+**macOS:**
+```
+~/Library/Application Support/sporlcli/
+├── cache/
+├── releases/
+├── state/
+├── .env
+└── .env.example
+```
+
+**Windows:**
+```
+%LOCALAPPDATA%\sporlcli\
+├── cache\
+├── releases\
+├── state\
+├── .env
+└── .env.example
 ```
 
 ### Release Week System
 - Weeks start on Saturday and end on Friday
-- Week 1 begins on the Saturday before/on January 1st
+- Week 1 begins on the Saturday before or on January 1st
 - Consistent numbering system for reliable organization
+- Example: Week 42 of 2023 might be October 14-20, 2023
 
-## ⚙️ Configuration
+## ⚙️ Configuration Reference
 
-The `.env` file supports these variables:
+All configuration is managed through environment variables, typically set in your `.env` file:
 
+### Required Settings
 ```bash
-# Local Server Configuration (Web App Redirect URI)
-SERVER_ADDRESS=127.0.0.1:8080
-
-# Spotify API Configuration
+# Your Spotify application's client ID (from Spotify Developer Dashboard)
 SPOTIFY_API_AUTH_CLIENT_ID=your_client_id
-SPOTIFY_API_AUTH_CLIENT_SECRET=your_client_secret
-SPOTIFY_USER_ID=your_spotify_username
 
-# Spotify API Configuration and Endpoints (usually don't need to change)
-SPOTIFY_API_REDIRECT_URI=http://${SERVER_ADDRESS}/callback
-SPOTIFY_API_AUTH_SCOPE="user-library-read user-follow-read user-read-email user-read-private playlist-modify-private playlist-modify-public playlist-read-private"
+# Your Spotify username (for playlist creation)
+SPOTIFY_USER_ID=your_username
+
+# Local server address for OAuth callback
+SERVER_ADDRESS=127.0.0.1:8080
+```
+
+### Optional Settings (usually don't need changes)
+```bash
+# OAuth redirect URI (must match Spotify app settings)
+SPOTIFY_API_REDIRECT_URI=http://127.0.0.1:8080/callback
+
+# OAuth scope permissions
+SPOTIFY_API_AUTH_SCOPE=user-library-read user-follow-read user-read-email user-read-private playlist-modify-private playlist-modify-public playlist-read-private
+
+# Spotify API endpoints
 SPOTIFY_API_AUTH_URL=https://accounts.spotify.com/authorize
 SPOTIFY_API_TOKEN_URL=https://accounts.spotify.com/api/token
 SPOTIFY_API_URL=https://api.spotify.com/v1
@@ -335,11 +290,19 @@ SPOTIFY_API_URL=https://api.spotify.com/v1
 Filter updates by release type:
 - `album` - Full-length albums
 - `single` - Singles and EPs
-- `appears_on` - Compilations and features
-- `compilation` - Greatest hits, etc.
-- `all` - All types
+- `appears_on` - Albums the artist appears on but doesn't own
+- `compilation` - Greatest hits, compilations
+- `all` - All of the above types
+
+Example:
+```bash
+# Only track albums and singles
+sporlcli releases update --type album,single
+```
 
 ### Batch Operations
+
+**Linux/macOS:**
 ```bash
 # Update everything in sequence
 sporlcli artists update && sporlcli releases update --type all
@@ -350,9 +313,25 @@ for week in {1..4}; do
 done
 ```
 
+**Windows (PowerShell):**
+```powershell
+# Update everything in sequence
+sporlcli artists update; sporlcli releases update --type all
+
+# Create playlists for multiple weeks
+for ($i=1; $i -le 4; $i++) {
+    sporlcli playlist --previous-weeks $i
+}
+```
+
 ### Automation
-Set up cron jobs for regular updates:
+
+**Linux/macOS (cron):**
 ```bash
+# Edit crontab
+crontab -e
+
+# Add these lines:
 # Daily artist check at 9 AM
 0 9 * * * /usr/local/bin/sporlcli artists update
 
@@ -360,13 +339,113 @@ Set up cron jobs for regular updates:
 0 10 * * 5 /usr/local/bin/sporlcli releases update
 ```
 
+**Windows (Task Scheduler):**
+```powershell
+# Create a scheduled task for daily artist updates
+schtasks /create /tn "SporlCLI Artist Update" /tr "sporlcli.exe artists update" /sc daily /st 09:00
+
+# Create a scheduled task for weekly release updates (Fridays at 10 AM)
+schtasks /create /tn "SporlCLI Release Update" /tr "sporlcli.exe releases update" /sc weekly /d FRI /st 10:00
+```
+
+## ⚠️ Important Limitations & Considerations
+
+### Spotify API Rate Limits
+
+SporlCLI respects Spotify's API rate limits to ensure reliable operation:
+
+- **Rate Limit**: ~100 requests per minute per application
+- **Automatic Retry**: Respects `Retry-After` headers (up to 2 minutes)
+- **Batch Delays**: Built-in 30-second delays between artist processing chunks
+- **Progressive Timeouts**: Longer delays for repeated rate limit hits
+
+**Performance Expectations:**
+- **< 50 artists**: 2-5 minutes for initial setup
+- **50-200 artists**: 5-15 minutes for initial setup
+- **200-500 artists**: 15-30 minutes for initial setup
+- **500+ artists**: 30+ minutes for initial setup
+
+### Account Requirements
+
+#### Basic Functionality (Free Spotify Account)
+✅ Authentication and artist following
+✅ Release tracking and caching
+✅ Information queries and statistics
+✅ Viewing release data
+
+#### Premium Features (Spotify Premium Required)
+🎵 **Playlist Creation**: Create new playlists
+🎵 **Playlist Modification**: Add tracks to playlists
+🎵 **Full Track Access**: Complete track information
+
+### Data Limitations
+
+#### Release Data Quality
+- ✅ **Precise Dates**: Only releases with exact dates (e.g., "2023-10-15")
+- ❌ **Imprecise Dates**: Excludes releases with only month/year (e.g., "2023-10")
+- 🌍 **Regional Availability**: Some releases may not be available in your market
+- 📝 **Classification**: Limited to Spotify's release type categories
+
+#### Technical Considerations
+- **Storage**: ~50-200 MB typical usage for cache and data
+- **Network**: ~1-10 MB initial download, ~100KB-2MB for updates
+- **Authentication**: Tokens expire after 1 hour (automatically refreshed)
+- **Concurrent Usage**: Designed for single-user, single-instance operation
+
+### Known Issues & Troubleshooting
+
+#### Common Issues
+
+**1. Authentication Problems**
+```bash
+# If auth fails, try:
+sporlcli auth
+
+# If browser doesn't open, copy the URL manually from the terminal
+```
+
+**2. Missing Recent Releases**
+```bash
+# Spotify may delay API availability for new releases (24-48 hours)
+sporlcli releases update
+```
+
+**3. Rate Limiting Messages**
+```bash
+# Normal during large updates - the tool will wait and retry automatically
+# Just let it run, or try again during off-peak hours
+```
+
+**4. Playlist Creation Fails**
+- Ensure you have Spotify Premium
+- Check that `SPOTIFY_USER_ID` matches your exact Spotify username
+- Verify OAuth scopes include playlist permissions
+
+#### Platform-Specific Issues
+
+**Windows:**
+- If PowerShell execution policy blocks scripts, run:
+  ```powershell
+  Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+  ```
+
+**macOS:**
+- If you get permission errors, ensure terminal has full disk access
+- Path with spaces: Use quotes around paths in commands
+
+**Linux:**
+- Ensure `~/.local/bin` is in your PATH for global access
+- Some distributions may require additional dependencies for the browser opening
+
 ## 🛠️ Development
 
 ### Building from Source
 ```bash
-git clone https://github.com/yourusername/sporlcli.git
-cd sporlcli
+git clone https://github.com/soundphilosopher/sporl.git
+cd sporl
 cargo build --release
+
+# The binary will be at target/release/sporlcli
 ```
 
 ### Running Tests
@@ -384,29 +463,55 @@ cargo doc --open
 ```
 src/
 ├── lib.rs              # Library root and common utilities
-├── main.rs             # CLI entry point
-├── config.rs           # Configuration management
-├── server.rs           # OAuth callback server
-├── types.rs            # Data structures
-├── utils.rs            # Utility functions
-├── api/                # HTTP API endpoints
+├── main.rs             # CLI entry point and argument parsing
+├── config.rs           # Configuration management (.env loading)
+├── server.rs           # OAuth callback HTTP server
+├── types.rs            # Data structures and type definitions
+├── utils.rs            # Utility functions (dates, PKCE, etc.)
+├── api/                # HTTP API endpoints for callback server
+│   ├── mod.rs          # API module exports
+│   ├── callback.rs     # OAuth callback handler
+│   └── health.rs       # Health check endpoint
 ├── cli/                # CLI command implementations
-├── management/         # Data management and caching
+│   ├── mod.rs          # CLI module exports
+│   ├── artists.rs      # Artist management commands
+│   ├── auth.rs         # Authentication command
+│   ├── info.rs         # Information and statistics commands
+│   ├── playlist.rs     # Playlist creation commands
+│   └── releases.rs     # Release tracking commands
+├── management/         # Data management and caching layer
+│   ├── mod.rs          # Management module exports
+│   ├── artist.rs       # Artist data management
+│   ├── auth.rs         # Token lifecycle management
+│   ├── release.rs      # Release data organization
+│   └── state.rs        # Operation state tracking
 └── spotify/            # Spotify API integration
+    ├── mod.rs          # Spotify module exports
+    ├── artists.rs      # Artist API operations
+    ├── auth.rs         # OAuth flow implementation
+    ├── playlist.rs     # Playlist API operations
+    └── releases.rs     # Release API operations
 ```
 
 ## 🤝 Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request. For major changes, please open an issue first to discuss what you would like to change.
+Contributions are welcome! Please feel free to submit a Pull Request.
 
 ### Development Setup
 1. Fork the repository
 2. Create a feature branch (`git checkout -b feature/amazing-feature`)
 3. Make your changes
 4. Add tests if applicable
-5. Commit your changes (`git commit -m 'Add amazing feature'`)
-6. Push to the branch (`git push origin feature/amazing-feature`)
-7. Open a Pull Request
+5. Run tests (`cargo test`)
+6. Commit your changes (`git commit -m 'Add amazing feature'`)
+7. Push to the branch (`git push origin feature/amazing-feature`)
+8. Open a Pull Request
+
+### Coding Guidelines
+- Follow Rust naming conventions
+- Add documentation for public functions
+- Include error handling for external API calls
+- Write tests for new functionality
 
 ## 📝 License
 
@@ -414,26 +519,38 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 🙏 Acknowledgments
 
-- [Spotify Web API](https://developer.spotify.com/documentation/web-api/) for providing the music data
-- [clap](https://clap.rs/) for the excellent CLI framework
-- [tokio](https://tokio.rs/) for async runtime
+- [Spotify Web API](https://developer.spotify.com/documentation/web-api/) for providing comprehensive music data
+- [clap](https://clap.rs/) for the excellent CLI framework with derive macros
+- [tokio](https://tokio.rs/) for async runtime and utilities
 - [reqwest](https://github.com/seanmonstar/reqwest) for HTTP client functionality
+- [serde](https://serde.rs/) for JSON serialization/deserialization
 
 ## 📞 Support
 
 If you encounter any issues or have questions:
 
-1. Search existing [issues](https://github.com/soundphilosopher/sporl/issues)
-2. Create a new issue with detailed information
+1. **Check the troubleshooting section** above for common issues
+2. **Search existing [issues](https://github.com/soundphilosopher/sporl/issues)** for similar problems
+3. **Create a new issue** with:
+   - Your operating system (Windows/macOS/Linux)
+   - Rust version (`rustc --version`)
+   - Complete error message
+   - Steps to reproduce the problem
+   - Your configuration (remove sensitive values)
 
 ## 🗺️ Roadmap
 
-- [ ] Support for multiple Spotify accounts
-- [ ] Advanced playlist customization options
-- [ ] Release notifications and alerts
-- [ ] Statistics and analytics dashboard
-- [ ] Export functionality for release data
+- [ ] **Multi-Account Support**: Handle multiple Spotify accounts
+- [ ] **Advanced Playlist Options**: Custom playlist descriptions, artwork
+- [ ] **Release Notifications**: Desktop/email notifications for new releases
+- [ ] **Export Functionality**: Export release data to CSV/JSON
+- [ ] **Statistics Dashboard**: Web-based analytics view
+- [ ] **Custom Week Definitions**: Alternative week numbering systems
+- [ ] **Release Filters**: Filter by genre, label, or custom criteria
+- [ ] **Playlist Templates**: Customizable playlist creation rules
 
 ---
 
-**Made with ❤️ for music lovers who want to stay up-to-date with their favorite artists!
+**Made with ❤️ for music lovers who want to stay up-to-date with their favorite artists!**
+
+*Compatible with Linux, macOS, and Windows • Powered by Spotify Web API
