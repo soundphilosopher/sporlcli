@@ -1,6 +1,6 @@
 use chrono::Utc;
 
-use crate::{error, info, management::ArtistReleaseManager, spotify, utils, warning};
+use crate::{error, info, management::ArtistReleaseManager, spotify, success, utils, warning};
 
 /// Internal structure for holding release week information.
 ///
@@ -145,13 +145,11 @@ pub async fn info(
             Err(_) => 0,
         };
 
-        info!("Artist count cache: {}", artist_cache_count);
-        info!("Artist count remote: {}", artist_remote_count);
+        success!("Artist count remote: {}", artist_remote_count);
         if artist_cache_count < artist_remote_count {
-            warning!(
-                "Artist count cache is outdated by {}.",
-                artist_remote_count - artist_cache_count
-            );
+            warning!("Artist count cache: {}", artist_cache_count);
+        } else {
+            success!("Artist count cache: {}", artist_cache_count);
         }
 
         return;
