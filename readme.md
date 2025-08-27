@@ -277,7 +277,7 @@ SERVER_ADDRESS=127.0.0.1:8080
 ### Optional Settings (usually don't need changes)
 ```bash
 # OAuth redirect URI (must match Spotify app settings)
-SPOTIFY_API_REDIRECT_URI=http://127.0.0.1:8080/callback
+SPOTIFY_API_REDIRECT_URI=http://${SERVER_ADDRESS}/callback
 
 # OAuth scope permissions
 SPOTIFY_API_AUTH_SCOPE=user-library-read user-follow-read user-read-email user-read-private playlist-modify-private playlist-modify-public playlist-read-private
