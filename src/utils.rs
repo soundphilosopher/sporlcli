@@ -1,3 +1,73 @@
+//! Utility functions and types for the Sporl music release tracking application.
+//!
+//! This module provides essential utilities for OAuth authentication, date/time handling,
+//! release data processing, and release type management. It serves as the core utility
+//! layer for the Sporl application, offering both public APIs for application features
+//! and internal helper functions.
+//!
+//! # Key Features
+//!
+//! ## OAuth PKCE Support
+//! - Code verifier and challenge generation for secure OAuth flows
+//! - Compliant with RFC 7636 (Proof Key for Code Exchange)
+//!
+//! ## Release Week Management
+//! - Custom week numbering system (Saturday to Friday)
+//! - Week range calculations and date utilities
+//! - Consistent week-based release tracking
+//!
+//! ## Release Data Processing
+//! - Album deduplication and sorting utilities
+//! - Release table row management
+//! - Integration with cached release data
+//!
+//! ## Release Type System
+//! - Comprehensive release kind enumeration and validation
+//! - Command-line argument parsing for release types
+//! - Flexible filtering system for different music release categories
+//!
+//! # Usage Examples
+//!
+//! ## OAuth Authentication
+//! ```rust,no_run
+//! use sporl::utils::{generate_code_verifier, generate_code_challenge};
+//!
+//! // Generate PKCE code verifier and challenge
+//! let verifier = generate_code_verifier();
+//! let challenge = generate_code_challenge(&verifier);
+//! ```
+//!
+//! ## Working with Release Weeks
+//! ```rust,no_run
+//! use sporl::utils::{build_week, get_release_week_number};
+//! use chrono::NaiveDate;
+//!
+//! // Get the week structure for a specific date
+//! let date = NaiveDate::from_ymd_opt(2023, 10, 17).unwrap();
+//! let week = build_week(date);
+//! let week_number = get_release_week_number(date);
+//! ```
+//!
+//! ## Processing Release Data
+//! ```rust,no_run
+//! use sporl::utils::{get_weekly_releases, remove_duplicate_albums};
+//!
+//! // Get and process weekly releases
+//! let mut albums = get_weekly_releases(42, 2023).await?;
+//! remove_duplicate_albums(&mut albums);
+//! ```
+//!
+//! ## Release Type Filtering
+//! ```rust,no_run
+//! use sporl::utils::{parse_release_kinds, ReleaseKind};
+//!
+//! // Parse release kinds from user input
+//! let kinds = parse_release_kinds("album,single")?;
+//! for kind in kinds.iter() {
+//!     println!("Processing: {}", kind);
+//! }
+//! ```
+
 use std::{
     cmp::Ordering,
     collections::{BTreeSet, HashSet},
@@ -84,7 +154,7 @@ pub fn generate_code_challenge(verifier: &str) -> String {
 /// let tuesday = NaiveDate::from_ymd_opt(2023, 10, 17).unwrap(); // Tuesday
 /// let saturday = get_saturday_before_or_on(tuesday); // Returns Oct 14, 2023 (Saturday)
 /// ```
-fn get_saturday_before_or_on(date: NaiveDate) -> NaiveDate {
+pub(crate) fn get_saturday_before_or_on(date: NaiveDate) -> NaiveDate {
     let weekday = date.weekday().num_days_from_sunday(); // Sunday=0, Saturday=6
     let days_to_subtract = (weekday + 1) % 7; // How many days to go back to Saturday
     date - Duration::days(days_to_subtract as i64)
@@ -340,7 +410,7 @@ pub async fn get_weekly_releases(week: u32, year: i32) -> Result<Vec<Album>, Str
 /// let mut albums = vec![album1, album2, album3];
 /// sort_albums_by_date_and_artist(&mut albums); // Sorted by date desc, then artist asc
 /// ```
-fn sort_albums_by_date_and_artist(albums: &mut Vec<Album>) {
+pub(crate) fn sort_albums_by_date_and_artist(albums: &mut Vec<Album>) {
     albums.sort_by(|a, b| {
         let date_cmp = b.release_date.cmp(&a.release_date);
         if date_cmp != Ordering::Equal {
@@ -376,7 +446,7 @@ pub enum ReleaseKind {
 }
 
 impl ReleaseKind {
-    const ALL: [ReleaseKind; 4] = [
+    pub const ALL: [ReleaseKind; 4] = [
         ReleaseKind::Album,
         ReleaseKind::Single,
         ReleaseKind::AppearsOn,
@@ -390,7 +460,7 @@ impl ReleaseKind {
 /// ordered consistently. Used to represent the user's selection of which types
 /// of releases to include in operations.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct ReleaseKinds(BTreeSet<ReleaseKind>);
+pub struct ReleaseKinds(pub BTreeSet<ReleaseKind>);
 
 impl ReleaseKinds {
     /// Returns an iterator over the release kinds in this set.

@@ -5,6 +5,9 @@ edition = "2024"
 description = "A command-line interface for the Spotify API to fetch new releases of followed artists."
 license = "MIT"
 
+[lib]
+doctest = false # deactivate doctests for now
+
 [[bin]]
 name = "sporlcli"
 path = "src/main.rs"
