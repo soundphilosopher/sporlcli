@@ -47,7 +47,7 @@ use crate::{
 /// # Rate Limiting and API Compliance
 ///
 /// Implements several strategies to respect Spotify's API limits:
-/// - **Batch Processing**: Processes artists in chunks of 20
+/// - **Batch Processing**: Processes artists in chunks of 100
 /// - **Progressive Delays**: 30-second delays between batches
 /// - **Rate Limit Handling**: Built-in handling for 429 responses
 /// - **Token Management**: Automatic token refresh for expired credentials
@@ -153,7 +153,7 @@ pub async fn update_releases(force: bool, release_types: &utils::ReleaseKinds) {
         Vec::new()
     };
 
-    let artist_chunks = artist_releases.chunks(20);
+    let artist_chunks = artist_releases.chunks(100);
     let artists_total = artist_releases.len().clone();
     let mut artists_count = 0;
     let mut artist_cached = false;
