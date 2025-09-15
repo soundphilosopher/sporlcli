@@ -417,8 +417,8 @@ pub(crate) fn sort_albums_by_date_and_artist(albums: &mut Vec<Album>) {
             return date_cmp;
         }
 
-        let a_artist = a.artists.get(0).map(|artist| &artist.name);
-        let b_artist = b.artists.get(0).map(|artist| &artist.name);
+        let a_artist = a.artists.get(0).map(|artist| artist.name.to_lowercase());
+        let b_artist = b.artists.get(0).map(|artist| artist.name.to_lowercase());
 
         a_artist.cmp(&b_artist)
     });
