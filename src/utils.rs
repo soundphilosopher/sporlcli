@@ -72,10 +72,12 @@ use std::{
     cmp::Ordering,
     collections::{BTreeSet, HashSet},
     fmt,
+    time::Duration,
 };
 
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
-use chrono::{Datelike, Duration, NaiveDate, Utc, Weekday};
+use chrono::{Datelike, NaiveDate, Utc, Weekday};
+use indicatif::{ProgressBar, ProgressStyle};
 use rand::{Rng, distr::Alphanumeric};
 use sha2::{Digest, Sha256};
 
@@ -157,7 +159,7 @@ pub fn generate_code_challenge(verifier: &str) -> String {
 pub(crate) fn get_saturday_before_or_on(date: NaiveDate) -> NaiveDate {
     let weekday = date.weekday().num_days_from_sunday(); // Sunday=0, Saturday=6
     let days_to_subtract = (weekday + 1) % 7; // How many days to go back to Saturday
-    date - Duration::days(days_to_subtract as i64)
+    date - chrono::Duration::days(days_to_subtract as i64)
 }
 
 /// Calculates the release week number for a given date within its year.
@@ -222,7 +224,9 @@ pub fn get_release_week_number(date: NaiveDate) -> u32 {
 /// ```
 pub fn build_week(date: NaiveDate) -> WeekOfTheYear {
     let saturday = get_saturday_before_or_on(date);
-    let dates: Vec<NaiveDate> = (0..7).map(|i| saturday + Duration::days(i)).collect();
+    let dates: Vec<NaiveDate> = (0..7)
+        .map(|i| saturday + chrono::Duration::days(i))
+        .collect();
 
     let week_number = get_release_week_number(saturday);
 
@@ -260,7 +264,7 @@ pub fn get_custom_week_range(date: NaiveDate, weeks_before: u32) -> Vec<WeekOfTh
 
     (start_offset..=weeks_before + start_offset)
         .map(|i| {
-            let target_date = date - Duration::days((i * 7) as i64);
+            let target_date = date - chrono::Duration::days((i * 7) as i64);
             build_week(target_date)
         })
         .collect()
@@ -627,4 +631,53 @@ pub fn parse_release_kinds(input: &str) -> Result<ReleaseKinds, String> {
     }
 
     Ok(ReleaseKinds(set))
+}
+
+/// Creates a customized spinning progress bar for indicating ongoing operations.
+///
+/// This function creates a visual progress indicator that shows a spinning animation
+/// with a custom message to provide user feedback during potentially long-running
+/// operations such as API requests or data processing.
+///
+/// # Arguments
+///
+/// * `title` - A string slice containing the message to display alongside the spinner.
+///             This typically describes the current operation being performed.
+///
+/// # Returns
+///
+/// A configured `ProgressBar` instance with:
+/// - A spinning animation using braille-pattern characters
+/// - Blue-colored spinner
+/// - Custom message display
+/// - 100ms tick interval for smooth animation
+///
+/// # Example
+///
+/// ```rust
+/// let pb = create_progress_bar("Fetching album data...");
+/// // Perform some operation
+/// pb.finish_and_clear();
+/// ```
+pub fn create_progress_bar(title: &str) -> ProgressBar {
+    // Create a new spinner-style progress bar (indeterminate progress)
+    let pb = ProgressBar::new_spinner();
+
+    // Set the display message that appears next to the spinner
+    pb.set_message(title.to_string());
+
+    // Enable automatic spinning with 100ms intervals for smooth animation
+    pb.enable_steady_tick(Duration::from_millis(100));
+
+    // Configure the visual appearance of the progress bar
+    pb.set_style(
+        ProgressStyle::with_template("{spinner:.blue} {msg}")
+            .unwrap() // Safe to unwrap as template format is known to be valid
+            // Use braille-pattern characters for a smooth spinning animation
+            // These characters create a visual effect of rotation
+            .tick_chars("⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"),
+    );
+
+    // Return the configured progress bar ready for use
+    pb
 }

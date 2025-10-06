@@ -1,6 +1,3 @@
-use std::time::Duration;
-
-use indicatif::{ProgressBar, ProgressStyle};
 use tabled::Table;
 
 use crate::{
@@ -8,7 +5,7 @@ use crate::{
     management::{ArtistReleaseManager, TokenManager},
     spotify, success,
     types::{Artist, ArtistReleases, ArtistTableRow},
-    warning,
+    utils, warning,
 };
 
 /// Updates the local artist cache with followed artists from Spotify.
@@ -344,14 +341,7 @@ async fn load_remote_artists(
     };
 
     // start progress wheel
-    let pb = ProgressBar::new_spinner();
-    pb.set_message("Fetching followed artists...");
-    pb.enable_steady_tick(Duration::from_millis(100));
-    pb.set_style(
-        ProgressStyle::with_template("{spinner:.blue} {msg}")
-            .unwrap()
-            .tick_chars("⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"),
-    );
+    let pb = utils::create_progress_bar("Fetching followed artists...");
 
     let mut after: Option<String> = None;
     let mut new_once = max_new;

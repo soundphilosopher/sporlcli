@@ -1,7 +1,6 @@
 use std::time::Duration;
 
 use chrono::{Datelike, NaiveDate};
-use indicatif::{ProgressBar, ProgressStyle};
 use tabled::Table;
 use tokio::time::sleep;
 
@@ -115,14 +114,7 @@ use crate::{
 /// - Network connectivity for API requests
 /// - Sufficient disk space for cache files
 pub async fn update_releases(force: bool, release_types: &utils::ReleaseKinds) {
-    let pb = ProgressBar::new_spinner();
-    pb.set_message("Fetching releases for followed artists...");
-    pb.enable_steady_tick(Duration::from_secs(100));
-    pb.set_style(
-        ProgressStyle::with_template("{spinner:.blue} {msg}")
-            .unwrap()
-            .tick_chars("⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"),
-    );
+    let pb = utils::create_progress_bar("Fetching releases for followed artists...");
 
     let mut state = match StateManager::new(STATE_TYPE_RELEASES.to_string())
         .load()

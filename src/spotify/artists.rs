@@ -1,6 +1,5 @@
 use std::time::Duration;
 
-use indicatif::{ProgressBar, ProgressStyle};
 use reqwest::{Client, StatusCode};
 use tokio::time::sleep;
 
@@ -8,6 +7,7 @@ use crate::{
     config, error,
     management::TokenManager,
     types::{Artist, FollowedArtistsResponse},
+    utils,
 };
 
 /// Retrieves a page of followed artists from the Spotify Web API.
@@ -151,14 +151,7 @@ pub async fn get_total_artist_count() -> Result<u64, reqwest::Error> {
         }
     };
 
-    let pb = ProgressBar::new_spinner();
-    pb.set_message("Fetching remote artists count...");
-    pb.enable_steady_tick(Duration::from_millis(100));
-    pb.set_style(
-        ProgressStyle::with_template("{spinner:.blue} {msg}")
-            .unwrap()
-            .tick_chars("⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"),
-    );
+    let pb = utils::create_progress_bar("Fetching remote artists count...");
 
     loop {
         let token = token_mgr.get_valid_token().await;
