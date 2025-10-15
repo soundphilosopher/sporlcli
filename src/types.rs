@@ -258,6 +258,8 @@ pub struct GetAlbumResponse {
     pub name: String,
     /// Release date of the album
     pub release_date: String,
+    /// Type of album (album, single, compilation, etc.)
+    pub album_type: String,
     /// Complete track listing for the album
     pub tracks: Tracks,
 }

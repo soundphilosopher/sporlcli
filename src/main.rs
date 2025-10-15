@@ -197,7 +197,7 @@ pub struct ReleasesUpdateOpts {
     /// Multiple values can be specified by repeating the flag or using comma separation.
     #[clap(
         long = "type",
-        default_value = "album",
+        default_value = "album,single",
         value_parser = utils::parse_release_kinds,
         action = ArgAction::Append,
         num_args = 1
@@ -215,6 +215,7 @@ pub struct ReleasesUpdateOpts {
 ///
 /// - `sporlcli playlist --previous-weeks 2` - Create playlist for last 2 weeks
 /// - `sporlcli playlist --release-date 2023-10-17` - Create playlist for specific date
+/// - `sporlcli playlist --type album` - Create playlist for specific release type/kind
 #[derive(Parser, Debug, Clone)]
 pub struct PlaylistOptions {
     /// Number of previous weeks to include in the playlist
@@ -224,6 +225,19 @@ pub struct PlaylistOptions {
     /// Target a specific release date for the playlist (YYYY-MM-DD format)
     #[clap(long)]
     release_date: Option<String>,
+
+    /// Release type(s) to include during update (can be repeated)
+    ///
+    /// Accepts values like "album", "single", "compilation", "appears_on", or "all".
+    /// Multiple values can be specified by repeating the flag or using comma separation.
+    #[clap(
+        long = "type",
+        default_value = "album,single",
+        value_parser = utils::parse_release_kinds,
+        action = ArgAction::Append,
+        num_args = 1
+    )]
+    pub release_kinds: utils::ReleaseKinds,
 }
 
 /// Options for information and statistics commands.
@@ -328,7 +342,9 @@ async fn main() {
             None => cli::list_releases(opt.previous_weeks, opt.release_date).await,
         },
 
-        Command::Playlist(opt) => cli::playlist(opt.previous_weeks, opt.release_date).await,
+        Command::Playlist(opt) => {
+            cli::playlist(opt.previous_weeks, opt.release_date, &opt.release_kinds).await
+        }
         Command::Info(opt) => {
             cli::info(
                 opt.release_week,

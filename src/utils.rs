@@ -371,12 +371,12 @@ pub fn get_date_from_string(date: Option<String>) -> NaiveDate {
 /// ```
 /// let releases = get_weekly_releases(42, 2023).await?; // Week 42 of 2023
 /// ```
-pub async fn get_weekly_releases(week: u32, year: i32) -> Result<Vec<Album>, String> {
+pub async fn get_weekly_releases(week: u32, year: i32, kind: &str) -> Result<Vec<Album>, String> {
     let mut releases: Vec<Album> = match ReleaseWeekManager::new(week, year, None)
         .load_from_cache()
         .await
     {
-        Ok(manager) => match manager.get_releases().await {
+        Ok(manager) => match manager.get_releases_by_kind(kind).await {
             Ok(releases) => releases,
             Err(e) => {
                 return Err(format!(

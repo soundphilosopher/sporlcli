@@ -17,6 +17,7 @@ use crate::{
 ///
 /// * `previous_weeks` - Number of weeks before the target date to include (None = current week only)
 /// * `release_date` - Specific date to target (None = current date)
+/// * `release_kinds` - Filter for release kinds (e.g., album, single)
 ///
 /// # Playlist Naming
 ///
@@ -86,6 +87,12 @@ use crate::{
 /// # Create playlist for specific date's week
 /// sporlcli playlist --release-date 2023-12-25
 ///
+/// # Create playlist for specific release kinds
+/// sporlcli playlist --release-kinds album,single
+///
+/// # Create playlist for specific release kinds and date
+/// sporlcli playlist --release-kinds album,single --release-date 2023-12-25
+///
 /// # Create playlists for 2 weeks before specific date
 /// sporlcli playlist --release-date 2023-12-25 --previous-weeks 2
 /// ```
@@ -139,41 +146,53 @@ use crate::{
 /// - Support for collaborative playlists
 /// - Playlist artwork customization
 /// - Integration with user's existing playlist folders
-pub async fn playlist(previous_weeks: Option<u32>, release_date: Option<String>) {
+pub async fn playlist(
+    previous_weeks: Option<u32>,
+    release_date: Option<String>,
+    release_kinds: &utils::ReleaseKinds,
+) {
     let curr_date = utils::get_date_from_string(release_date);
     let curr_year = curr_date.year();
     let release_weeks = utils::get_custom_week_range(curr_date, previous_weeks.unwrap_or(0));
 
-    for release_week in release_weeks {
-        let playlist_name = format!(
-            "Weekly Picks {}/{}",
-            release_week.week.clone(),
-            curr_year.clone()
-        );
+    for release_kind in release_kinds.iter() {
+        for release_week in release_weeks.clone() {
+            let playlist_name = format!(
+                "Weekly Picks {}/{} ({})",
+                release_week.week.clone(),
+                curr_year.clone(),
+                release_kind.clone()
+            );
 
-        let playlist_exists = match spotify::playlist::exists(&playlist_name).await {
-            Ok(exists) => exists,
-            Err(e) => {
-                warning!("Failed to check if playlist exists: {}", e);
-                false
+            let playlist_exists = match spotify::playlist::exists(&playlist_name).await {
+                Ok(exists) => exists,
+                Err(e) => {
+                    warning!("Failed to check if playlist exists: {}", e);
+                    false
+                }
+            };
+
+            if playlist_exists {
+                info!("Playlist {} already exists", playlist_name);
+                continue;
             }
-        };
 
-        if playlist_exists {
-            info!("Playlist {} already exists", playlist_name);
-            continue;
-        }
+            info!(
+                "Gather {} information for release week {}/{}",
+                release_kind.clone(),
+                release_week.week.clone(),
+                curr_year.clone()
+            );
 
-        info!(
-            "Gather album information for release week {}/{}",
-            release_week.week.clone(),
-            curr_year.clone()
-        );
+            let mut all_albums: Vec<GetSeveralAlbumsResponse> = Vec::new();
 
-        let mut all_albums: Vec<GetSeveralAlbumsResponse> = Vec::new();
-
-        let releases: Vec<Album> =
-            match utils::get_weekly_releases(release_week.week, curr_year).await {
+            let releases: Vec<Album> = match utils::get_weekly_releases(
+                release_week.week,
+                curr_year,
+                &release_kind.to_string(),
+            )
+            .await
+            {
                 Ok(releases) => releases,
                 Err(e) => {
                     warning!("{}", e);
@@ -181,87 +200,75 @@ pub async fn playlist(previous_weeks: Option<u32>, release_date: Option<String>)
                 }
             };
 
-        if releases.is_empty() {
-            continue;
-        }
+            if releases.is_empty() {
+                continue;
+            }
 
-        let release_chunks = releases.chunks(20);
-        let mut handles = Vec::new();
+            let release_chunks = releases.chunks(20);
+            let mut handles = Vec::new();
 
-        for chunk in release_chunks {
-            let chunk = chunk.to_vec();
-            let handle =
-                tokio::spawn(async move { spotify::releases::get_several_releases(&chunk).await });
-            handles.push(handle);
-        }
+            for chunk in release_chunks {
+                let chunk = chunk.to_vec();
+                let handle =
+                    tokio::spawn(
+                        async move { spotify::releases::get_several_releases(&chunk).await },
+                    );
+                handles.push(handle);
+            }
 
-        for handle in handles {
-            match handle.await {
-                Ok(Ok(response)) => {
-                    all_albums.push(response);
-                }
-                Ok(Err(e)) => {
-                    warning!("{}", e);
-                }
-                Err(e) => {
-                    warning!("Task join error: {}", e);
+            for handle in handles {
+                match handle.await {
+                    Ok(Ok(response)) => {
+                        all_albums.push(response);
+                    }
+                    Ok(Err(e)) => {
+                        warning!("{}", e);
+                    }
+                    Err(e) => {
+                        warning!("Task join error: {}", e);
+                    }
                 }
             }
-        }
 
-        success!(
-            "Album information gathered for release week {}/{}",
-            release_week.week.clone(),
-            curr_year.clone()
-        );
-
-        info!(
-            "Create playlist for release week {}/{}",
-            release_week.week.clone(),
-            curr_year.clone()
-        );
-
-        let playlist_id: Option<String> = match spotify::playlist::create(playlist_name).await {
-            Ok(resp) => {
-                success!(
-                    "Playlist for release week {}/{} created.",
-                    release_week.week.clone(),
-                    curr_year.clone()
-                );
-                Some(resp.id.clone())
-            }
-            Err(e) => {
-                warning!("Failed to create playlist: {}", e);
-                None
-            }
-        };
-
-        if let Some(playlist_id) = playlist_id {
-            info!(
-                "Add tracks to playlist for release week {}/{}",
+            success!(
+                "Release information gathered for release week {}/{}",
                 release_week.week.clone(),
                 curr_year.clone()
             );
-            let tracks: Vec<Track> = all_albums
-                .iter()
-                .flat_map(|ar| {
-                    ar.albums
-                        .iter()
-                        .flat_map(|album| album.tracks.items.first())
-                })
-                .cloned()
-                .collect();
 
-            let tracks_chunks = tracks.chunks(100);
-            for chunk in tracks_chunks {
-                match spotify::playlist::add_tracks(playlist_id.clone(), chunk.to_vec()).await {
-                    Ok(_) => success!(
-                        "Tracks added to playlist for release week {}/{}",
-                        release_week.week.clone(),
-                        curr_year.clone()
-                    ),
-                    Err(e) => warning!("Failed to add tracks to playlist: {}", e),
+            info!("Create playlist {} ...", playlist_name.clone());
+
+            let playlist_id: Option<String> =
+                match spotify::playlist::create(playlist_name.clone()).await {
+                    Ok(resp) => {
+                        success!("Playlist {} created.", playlist_name.clone());
+                        Some(resp.id.clone())
+                    }
+                    Err(e) => {
+                        warning!("Failed to create playlist: {}", e);
+                        None
+                    }
                 };
+
+            if let Some(playlist_id) = playlist_id {
+                info!("Add tracks to playlist {} ...", playlist_name.clone());
+                let tracks: Vec<Track> = all_albums
+                    .iter()
+                    .flat_map(|ar| {
+                        ar.albums
+                            .iter()
+                            .flat_map(|album| album.tracks.items.first())
+                    })
+                    .cloned()
+                    .collect();
+
+                let tracks_chunks = tracks.chunks(100);
+                for chunk in tracks_chunks {
+                    match spotify::playlist::add_tracks(playlist_id.clone(), chunk.to_vec()).await {
+                        Ok(_) => success!("Tracks added to playlist {}", playlist_name.clone()),
+                        Err(e) => warning!("Failed to add tracks to playlist: {}", e),
+                    };
+                }
             }
         }
     }

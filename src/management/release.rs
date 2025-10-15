@@ -243,6 +243,36 @@ impl ReleaseWeekManager {
         Ok(self.releases.clone())
     }
 
+    /// Retrieves all releases of a specific kind.
+    ///
+    /// # Arguments
+    ///
+    /// * `kind` - The kind of releases to retrieve.
+    ///
+    /// # Returns
+    ///
+    /// A `Result` containing a vector of `Album` structs that match the specified kind,
+    /// or an error message if the operation fails.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// let manager = ReleaseWeekManager::load_from_cache().await?;
+    /// let releases = manager.get_releases_by_kind("album").await?;
+    ///
+    /// for album in releases {
+    ///     println!("Album: {} by {}", album.name, album.artists[0].name);
+    /// }
+    /// ```
+    pub async fn get_releases_by_kind(&self, kind: &str) -> Result<Vec<Album>, String> {
+        Ok(self
+            .releases
+            .clone()
+            .into_iter()
+            .filter(|album| album.album_type == kind)
+            .collect())
+    }
+
     /// Constructs the filesystem path for the cache file.
     ///
     /// Builds the platform-specific path where release data should be stored
